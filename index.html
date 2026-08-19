@@ -2159,6 +2159,7 @@ function toggleIdeaRec(){
 (function(){
   const DB="https://grooveit-3ea02-default-rtdb.firebaseio.com";
   const STATE_URL=DB+"/grooveit_app/state.json";
+  console.log("Grooveit Sync Build: MASTER-SYNC-FIX-2026-08-20");
 
   // Ein einziger gemeinsamer Cloud-State für die komplette Grooveit-App.
   // Damit werden Partys, STAFF-Feedback, Ideen und Zusatzdaten zwischen Geräten geteilt.
@@ -2206,21 +2207,14 @@ function toggleIdeaRec(){
   }
 
   function status(msg){
-    // Der direkte Live-Sync für Events/STAFF/Ideen ist die maßgebliche Verbindung.
-    // Dieser ältere Zusatz-Sync darf dessen Status nicht mehr überschreiben.
-    if(msg && (msg.includes("Backup") || msg.includes("wiederhergestellt"))){
-      let el=document.getElementById("rtdbStatus");
-      if(!el){
-        el=document.createElement("div");
-        el.id="rtdbStatus";
-        el.style.cssText="position:fixed;right:10px;bottom:10px;z-index:99999;background:#111;border:1px solid #333;border-radius:9px;padding:7px 10px;color:#ddd;font:12px system-ui";
-        document.body.appendChild(el);
-      }
-      el.textContent=msg;
-      setTimeout(()=>{ el.textContent="☁️ Gemeinsam verbunden"; },1800);
-    }else{
-      console.log("Grooveit Zusatz-Sync:",msg);
+    let el=document.getElementById("rtdbStatus");
+    if(!el){
+      el=document.createElement("div");
+      el.id="rtdbStatus";
+      el.style.cssText="position:fixed;right:10px;bottom:10px;z-index:99999;background:#111;border:1px solid #333;border-radius:9px;padding:7px 10px;color:#ddd;font:12px system-ui;max-width:78vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+      document.body.appendChild(el);
     }
+    el.textContent=msg;
   }
 
   function applyRemote(remote){
@@ -2239,7 +2233,14 @@ function toggleIdeaRec(){
   }
 
   async function readRemote(){
-    const r=await fetchWithTimeout(STATE_URL+"?t="+Date.now(),{cache:"no-store"});
+    const r=await fetchWithTimeout(STATE_URL,{
+      method:"GET",
+      cache:"no-store",
+      headers:{
+        "Accept":"application/json",
+        "Cache-Control":"no-cache"
+      }
+    });
     if(!r.ok) throw new Error("Lesen HTTP "+r.status+" "+await r.text());
     return await r.json();
   }
@@ -2303,6 +2304,7 @@ function toggleIdeaRec(){
       await writeRemote(data);
       lastRemote=sig;
       status("☁️ Gemeinsam gespeichert");
+      setTimeout(()=>status("☁️ Gemeinsam verbunden"),1200);
     }catch(e){
       console.error("Realtime speichern",e);
       status("⚠️ Datenbankfehler");
@@ -2361,17 +2363,17 @@ function toggleIdeaRec(){
             if(rs!==stable(localState())){
               applyRemote(remote);
               status("☁️ Aktualisiert");
-              setTimeout(()=>location.reload(),200);
+              setTimeout(()=>location.reload(),350);
             }
           }
         }catch(e){
           console.error("Realtime lesen",e);
-          status("⚠️ Verbindung");
+          status("⚠️ "+(e && e.message ? e.message : "Verbindungsfehler"));
         }
       },2500);
     }catch(e){
       console.error("Realtime Start",e);
-      status("⚠️ Verbindung fehlgeschlagen");
+      status("⚠️ "+(e && e.message ? e.message : "Verbindung fehlgeschlagen"));
     }
   }
 
