@@ -2152,17 +2152,288 @@ function toggleIdeaRec(){
 }
 </script>
 
+
+<script>
+/* Grooveit MASTER – direkter Mehrgeräte-Sync für Events, STAFF-Feedback und Ideen */
+(function(){
+  const DB="https://grooveit-3ea02-default-rtdb.firebaseio.com";
+  const ROOT=DB+"/grooveit_live";
+
+  let applying=false;
+  let ready=false;
+  let syncBusy=false;
+
+  function eventId(name){
+    try{
+      const bytes=new TextEncoder().encode(String(name||""));
+      let bin="";
+      bytes.forEach(b=>bin+=String.fromCharCode(b));
+      return btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+    }catch(e){
+      return encodeURIComponent(String(name||"")).replace(/[.#$\[\]\/]/g,"_");
+    }
+  }
+
+  async function readJSON(url){
+    const r=await fetch(url+(url.includes("?")?"&":"?")+"t="+Date.now(),{cache:"no-store"});
+    if(!r.ok) throw new Error("Lesen HTTP "+r.status);
+    return await r.json();
+  }
+  async function putJSON(url,data){
+    const r=await fetch(url,{
+      method:"PUT",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(data)
+    });
+    if(!r.ok) throw new Error("Speichern HTTP "+r.status);
+  }
+  async function deleteJSON(url){
+    const r=await fetch(url,{method:"DELETE"});
+    if(!r.ok) throw new Error("Löschen HTTP "+r.status);
+  }
+
+  function normalizeFeedback(v){
+    return Array.isArray(v)?v.filter(Boolean).map(x=>({
+      name:String(x.name||"Teammitglied"),
+      text:String(x.text||""),
+      date:String(x.date||"")
+    })):[];
+  }
+  function normalizeIdeas(v){
+    return Array.isArray(v)?v.filter(Boolean).map(x=>({
+      name:String(x.name||"Teammitglied"),
+      text:String(x.text||""),
+      votes:Number(x.votes||0),
+      date:String(x.date||"")
+    })):[];
+  }
+
+  function feedbackURL(ev){ return ROOT+"/events/"+eventId(ev)+"/feedback.json"; }
+  function ideasURL(ev){ return ROOT+"/events/"+eventId(ev)+"/ideas.json"; }
+  function namesURL(){ return ROOT+"/event_names.json"; }
+
+  function localNames(){
+    return Object.keys(window.events||events||{});
+  }
+
+  async function pushNames(){
+    await putJSON(namesURL(),localNames());
+  }
+  async function pushFeedback(ev){
+    if(applying || !ev) return;
+    const data=normalizeFeedback((events&&events[ev])||[]);
+    await putJSON(feedbackURL(ev),data);
+  }
+  async function pushIdeas(ev){
+    if(applying || !ev) return;
+    let ideas=[];
+    try{ideas=JSON.parse(localStorage.getItem("grooveitIdeas::"+ev)||"[]")}catch(e){}
+    await putJSON(ideasURL(ev),normalizeIdeas(ideas));
+  }
+
+  function applyFeedback(ev,data){
+    applying=true;
+    try{
+      events[ev]=normalizeFeedback(data);
+      localStorage.setItem("grooveitEvents",JSON.stringify(events));
+    }finally{ applying=false; }
+  }
+  function applyIdeas(ev,data){
+    applying=true;
+    try{
+      localStorage.setItem("grooveitIdeas::"+ev,JSON.stringify(normalizeIdeas(data)));
+    }finally{ applying=false; }
+  }
+
+  async function syncNames(){
+    const remote=await readJSON(namesURL());
+    const local=localNames();
+
+    if(remote===null){
+      await putJSON(namesURL(),local);
+      return local;
+    }
+
+    const remoteNames=Array.isArray(remote)?remote.map(String).filter(Boolean):[];
+    const merged=[...new Set([...remoteNames,...local])];
+
+    applying=true;
+    try{
+      merged.forEach(n=>{
+        if(!Object.prototype.hasOwnProperty.call(events,n)) events[n]=[];
+      });
+      localStorage.setItem("grooveitEvents",JSON.stringify(events));
+
+      // Beim ersten Öffnen auf einem neuen Gerät nicht am Demo-Event hängen bleiben.
+      if(remoteNames.length && (!currentEvent || !remoteNames.includes(currentEvent))){
+        currentEvent=remoteNames[0];
+        localStorage.setItem("grooveitCurrentEvent",currentEvent);
+      }
+    }finally{ applying=false; }
+
+    if(JSON.stringify(merged)!==JSON.stringify(remoteNames)){
+      await putJSON(namesURL(),merged);
+    }
+    return merged;
+  }
+
+  async function syncOneEvent(ev){
+    if(!ev) return;
+
+    const [rf,ri]=await Promise.all([
+      readJSON(feedbackURL(ev)),
+      readJSON(ideasURL(ev))
+    ]);
+
+    if(rf===null){
+      const localFb=normalizeFeedback((events&&events[ev])||[]);
+      await putJSON(feedbackURL(ev),localFb);
+    }else{
+      const remoteFb=normalizeFeedback(rf);
+      if(JSON.stringify(remoteFb)!==JSON.stringify(normalizeFeedback((events&&events[ev])||[]))){
+        applyFeedback(ev,remoteFb);
+      }
+    }
+
+    let localIdeas=[];
+    try{localIdeas=normalizeIdeas(JSON.parse(localStorage.getItem("grooveitIdeas::"+ev)||"[]"))}catch(e){}
+    if(ri===null){
+      await putJSON(ideasURL(ev),localIdeas);
+    }else{
+      const remoteIdeas=normalizeIdeas(ri);
+      if(JSON.stringify(remoteIdeas)!==JSON.stringify(localIdeas)){
+        applyIdeas(ev,remoteIdeas);
+      }
+    }
+  }
+
+  async function syncAll(){
+    if(syncBusy) return;
+    syncBusy=true;
+    try{
+      const names=await syncNames();
+      await Promise.all(names.map(syncOneEvent));
+
+      // UI neu zeichnen, ohne Seiten-Reload und ohne lokalen Browser-Kontext zu verlieren.
+      if(typeof render==="function") render();
+      if(typeof renderIdeas==="function") renderIdeas();
+      if(typeof renderTopAllFeedbacks==="function") renderTopAllFeedbacks();
+      if(typeof renderTopAllIdeas==="function") renderTopAllIdeas();
+      if(typeof renderEventManagerV13==="function") renderEventManagerV13();
+      ready=true;
+    }catch(e){
+      console.error("Grooveit Live Sync:",e);
+    }finally{
+      syncBusy=false;
+    }
+  }
+
+  // Mutationen gezielt direkt in Firebase schreiben.
+  const oldSubmitFeedback=window.submitFeedback;
+  window.submitFeedback=function(){
+    const ev=currentEvent;
+    const result=oldSubmitFeedback.apply(this,arguments);
+    setTimeout(()=>pushFeedback(ev).catch(console.error),0);
+    return result;
+  };
+
+  const oldDeleteFeedback=window.deleteFeedback;
+  window.deleteFeedback=function(){
+    const ev=currentEvent;
+    const result=oldDeleteFeedback.apply(this,arguments);
+    setTimeout(()=>pushFeedback(ev).catch(console.error),0);
+    return result;
+  };
+
+  const oldAddIdea=window.addIdea;
+  window.addIdea=function(){
+    const ev=currentEvent;
+    const result=oldAddIdea.apply(this,arguments);
+    setTimeout(()=>pushIdeas(ev).catch(console.error),0);
+    return result;
+  };
+
+  const oldVoteIdea=window.voteIdea;
+  window.voteIdea=function(){
+    const ev=currentEvent;
+    const result=oldVoteIdea.apply(this,arguments);
+    setTimeout(()=>pushIdeas(ev).catch(console.error),0);
+    return result;
+  };
+
+  const oldDeleteIdea=window.deleteIdea;
+  window.deleteIdea=function(){
+    const ev=currentEvent;
+    const result=oldDeleteIdea.apply(this,arguments);
+    setTimeout(()=>pushIdeas(ev).catch(console.error),0);
+    return result;
+  };
+
+  const oldNewEvent=window.newEvent;
+  window.newEvent=function(){
+    const before=currentEvent;
+    const result=oldNewEvent.apply(this,arguments);
+    if(currentEvent!==before){
+      const ev=currentEvent;
+      setTimeout(async()=>{
+        try{
+          await pushNames();
+          await Promise.all([pushFeedback(ev),pushIdeas(ev)]);
+        }catch(e){console.error(e);}
+      },0);
+    }
+    return result;
+  };
+
+  const oldDeleteCurrentEvent=window.deleteCurrentEvent;
+  window.deleteCurrentEvent=function(){
+    const deleted=currentEvent;
+    const existed=!!(events&&events[deleted]);
+    const result=oldDeleteCurrentEvent.apply(this,arguments);
+    if(existed && !(events&&events[deleted])){
+      setTimeout(async()=>{
+        try{
+          await deleteJSON(ROOT+"/events/"+eventId(deleted)+".json");
+          await pushNames();
+        }catch(e){console.error(e);}
+      },0);
+    }
+    return result;
+  };
+
+  const oldSwitchEvent=window.switchEvent;
+  window.switchEvent=function(){
+    const result=oldSwitchEvent.apply(this,arguments);
+    setTimeout(()=>syncOneEvent(currentEvent).then(()=>{
+      if(typeof render==="function")render();
+      if(typeof renderIdeas==="function")renderIdeas();
+    }).catch(console.error),0);
+    return result;
+  };
+
+  // Für Diagnose / spätere Erweiterungen.
+  window.grooveitLiveSync={
+    syncAll,
+    pushFeedback,
+    pushIdeas,
+    pushNames
+  };
+
+  window.addEventListener("load",()=>{
+    syncAll();
+    setInterval(syncAll,2000);
+  });
+})();
+</script>
+
 <script>
 (function(){
   const DB="https://grooveit-3ea02-default-rtdb.firebaseio.com";
   const STATE_URL=DB+"/grooveit_app/state.json";
 
   const PREFIXES=[
-    "grooveitEvents",
-    "grooveitCurrentEvent",
     "grooveitFinance::",
     "grooveitAISummary::",
-    "grooveitIdeas::",
     "grooveitIdeasAI::",
     "grooveitIncomeEvents",
     "grooveitGuestEvents",
