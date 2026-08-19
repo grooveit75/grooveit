@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Grooveit – Party Feedback </title>
+<title>Grooveit – Party Feedback</title>
 <style>
 :root{
   --bg:#050505;--panel:#0b0b0c;--panel2:#101012;--line:#252529;--text:#f4f4f5;--muted:#9a9aa3;
@@ -417,6 +417,16 @@ textarea{min-height:130px;resize:vertical}
 <div id="adminIncomeIntegrated"></div>
     <div class="admin-actions" style="margin-bottom:14px">
       <button onclick="adminLogout()">🔒 Admin schliessen</button>
+    </div>
+
+    <div class="card pad" style="margin:0 0 18px;background:#101012">
+      <h3 style="margin-top:0">💾 Datensicherung</h3>
+      <div class="sub" style="margin:6px 0 12px">Sichert alle Grooveit-Events, Feedbacks, Ideen, Gästezahlen und Finanzdaten. Beim Wiederherstellen werden die aktuellen gemeinsamen Daten ersetzt.</div>
+      <div class="admin-actions">
+        <button onclick="downloadGrooveitBackup()">⬇️ Backup herunterladen</button>
+        <button onclick="document.getElementById('grooveitBackupFile').click()">⬆️ Backup wiederherstellen</button>
+        <input id="grooveitBackupFile" type="file" accept="application/json,.json" style="display:none" onchange="restoreGrooveitBackup(this.files && this.files[0]);this.value=''">
+      </div>
     </div>
 
     <h3>Event-Kennzahlen</h3>
@@ -2192,6 +2202,47 @@ function toggleIdeaRec(){
     });
     if(!r.ok) throw new Error("Speichern HTTP "+r.status+" "+await r.text());
   }
+
+  window.downloadGrooveitBackup=function(){
+    const backup={
+      format:"grooveit-backup",
+      version:1,
+      createdAt:new Date().toISOString(),
+      data:localState()
+    };
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
+    const a=document.createElement("a");
+    const stamp=new Date().toISOString().slice(0,19).replace(/[T:]/g,"-");
+    a.href=URL.createObjectURL(blob);
+    a.download="Grooveit_Backup_"+stamp+".json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+    status("💾 Backup erstellt");
+  };
+
+  window.restoreGrooveitBackup=async function(file){
+    if(!file) return;
+    try{
+      const parsed=JSON.parse(await file.text());
+      const data=(parsed && parsed.format==="grooveit-backup" && parsed.data)?parsed.data:parsed;
+      if(!data || typeof data!=="object" || Array.isArray(data)) throw new Error("Ungültiges Backup");
+      const clean={};
+      Object.entries(data).forEach(([k,v])=>{ if(relevant(String(k))) clean[k]=String(v); });
+      if(!Object.keys(clean).length) throw new Error("Keine Grooveit-Daten im Backup gefunden");
+      if(!confirm("Backup wirklich wiederherstellen? Die aktuellen gemeinsamen Grooveit-Daten werden ersetzt.")) return;
+      status("☁️ Backup wird wiederhergestellt …");
+      await writeRemote(clean);
+      lastRemote=stable(clean);
+      applyRemote(clean);
+      status("✅ Backup wiederhergestellt");
+      setTimeout(()=>location.reload(),500);
+    }catch(e){
+      console.error("Backup wiederherstellen",e);
+      alert("Backup konnte nicht wiederhergestellt werden: "+(e && e.message ? e.message : e));
+      status("⚠️ Backup-Fehler");
+    }
+  };
 
   async function pushNow(){
     if(!cloudReady || cloudApplying) return;
