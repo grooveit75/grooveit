@@ -2075,7 +2075,7 @@ function toggleIdeaRec(){
   ideaRecognition=new SR();
   ideaRecognition.lang="de-CH";
   ideaRecognition.continuous=true;
-  ideaRecognition.interimResults=true;
+  ideaRecognition.interimResults=false;
 
   const existing=target.value.trim();
   let finalTranscript="";
@@ -2087,13 +2087,21 @@ function toggleIdeaRec(){
   };
 
   ideaRecognition.onresult=(event)=>{
-    let interim="";
+    // Nur definitive Resultate übernehmen. So wird derselbe Satz nicht
+    // gleichzeitig als Zwischen- und Endresultat doppelt angezeigt.
     for(let i=event.resultIndex;i<event.results.length;i++){
-      const txt=event.results[i][0].transcript;
-      if(event.results[i].isFinal) finalTranscript+=txt+" ";
-      else interim+=txt;
+      if(!event.results[i].isFinal) continue;
+      const txt=(event.results[i][0].transcript||"").trim();
+      if(!txt) continue;
+
+      // Schutz gegen identische Wiederholungen durch die Browser-Erkennung.
+      const parts=finalTranscript.trim().split(/\s*\|\s*/).filter(Boolean);
+      if(!parts.length || parts[parts.length-1].toLocaleLowerCase("de-CH")!==txt.toLocaleLowerCase("de-CH")){
+        parts.push(txt);
+      }
+      finalTranscript=parts.join(" | ");
     }
-    target.value=(existing+(existing?" ":"")+finalTranscript+interim).trim();
+    target.value=[existing,finalTranscript].filter(Boolean).join(" ").trim();
   };
 
   ideaRecognition.onerror=(event)=>{
