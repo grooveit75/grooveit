@@ -2158,8 +2158,9 @@ function toggleIdeaRec(){
 <script>
 (function(){
   const DB="https://grooveit-3ea02-default-rtdb.firebaseio.com";
-  const STATE_URL=DB+"/grooveit_app/state.json";
-  console.log("Grooveit Sync Build: MASTER-SYNC-FIX-V2-2026-08-20");
+  const STATE_URL=DB+"/grooveit_app/state_blob.json";
+  const LEGACY_STATE_URL=DB+"/grooveit_app/state.json";
+  console.log("Grooveit Sync Build: MASTER-SYNC-BLOB-V3-2026-08-20");
 
   // Ein einziger gemeinsamer Cloud-State für die komplette Grooveit-App.
   // Damit werden Partys, STAFF-Feedback, Ideen und Zusatzdaten zwischen Geräten geteilt.
@@ -2233,20 +2234,26 @@ function toggleIdeaRec(){
   }
 
   function encodeCloudState(data){
-    // Firebase erlaubt in JSON-Objektschlüsseln u.a. keinen Punkt (.).
-    // Eventnamen wie KAOS_19.09.26 stecken aber in localStorage-Schlüsseln.
-    // Deshalb speichern wir die Schlüssel als Werte in einer Entry-Liste.
-    return {
-      format:"grooveit-cloud-state",
-      version:2,
-      entries:Object.entries(data||{}).map(([k,v])=>({k:String(k),v:String(v)}))
-    };
+    // Ganze Grooveit-Struktur als JSON-String speichern.
+    // Dadurch sind Punkte, Doppelpunkte usw. in localStorage-Schlüsseln
+    // nur noch Textinhalt und niemals Firebase-Schlüssel.
+    return JSON.stringify(data||{});
   }
 
   function decodeCloudState(payload){
-    if(payload===null) return null;
+    if(payload===null || payload===undefined) return null;
 
-    // Neues, Firebase-sicheres Format
+    // Neues robustes Blob-Format: Firebase-Wert ist ein String.
+    if(typeof payload==="string"){
+      try{
+        const parsed=JSON.parse(payload);
+        return (parsed && typeof parsed==="object" && !Array.isArray(parsed)) ? parsed : {};
+      }catch(e){
+        throw new Error("Cloud-Daten konnten nicht gelesen werden");
+      }
+    }
+
+    // Rückwärtskompatibilität für ältere Objektformate.
     if(payload && payload.format==="grooveit-cloud-state" && Array.isArray(payload.entries)){
       const data={};
       payload.entries.forEach(row=>{
@@ -2257,7 +2264,6 @@ function toggleIdeaRec(){
       return data;
     }
 
-    // Rückwärtskompatibilität für ältere Daten ohne problematische Schlüssel
     if(payload && typeof payload==="object" && !Array.isArray(payload)){
       const data={};
       Object.entries(payload).forEach(([k,v])=>{
@@ -2269,27 +2275,40 @@ function toggleIdeaRec(){
     return {};
   }
 
-  async function readRemote(){
-    const r=await fetchWithTimeout(STATE_URL,{
+  async function getJSON(url){
+    const r=await fetchWithTimeout(url,{
       method:"GET",
       cache:"no-store",
-      headers:{
-        "Accept":"application/json",
-        "Cache-Control":"no-cache"
-      }
+      headers:{"Accept":"application/json"}
     });
     if(!r.ok) throw new Error("Lesen HTTP "+r.status+" "+await r.text());
-    return decodeCloudState(await r.json());
+    return await r.json();
+  }
+
+  async function readRemote(){
+    // Zuerst neues Blob-Format lesen.
+    let payload=await getJSON(STATE_URL);
+    if(payload!==null) return decodeCloudState(payload);
+
+    // Falls noch nicht vorhanden: alte Daten einmalig übernehmen.
+    const legacy=await getJSON(LEGACY_STATE_URL);
+    if(legacy===null) return null;
+    return decodeCloudState(legacy);
   }
 
   async function writeRemote(data){
-    const payload=encodeCloudState(data);
+    const blob=encodeCloudState(data);
     const r=await fetchWithTimeout(STATE_URL,{
       method:"PUT",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(payload)
+      // JSON.stringify(blob) ist absichtlich doppelt serialisiert:
+      // Firebase speichert damit EINEN Stringwert statt ein Objekt mit verbotenen Schlüsseln.
+      body:JSON.stringify(blob)
     });
-    if(!r.ok) throw new Error("Speichern HTTP "+r.status+" "+await r.text());
+    if(!r.ok){
+      const detail=await r.text();
+      throw new Error("Speichern HTTP "+r.status+(detail?" "+detail:""));
+    }
   }
 
   window.downloadGrooveitBackup=function(){
@@ -2345,7 +2364,7 @@ function toggleIdeaRec(){
       setTimeout(()=>status("☁️ Gemeinsam verbunden"),1200);
     }catch(e){
       console.error("Realtime speichern",e);
-      status("⚠️ Datenbankfehler");
+      status("⚠️ "+(e && e.message ? e.message : "Datenbankfehler"));
     }
   }
 
