@@ -2163,6 +2163,28 @@ function toggleIdeaRec(){
   let ready=false;
   let syncBusy=false;
 
+  function liveStatus(msg){
+    let el=document.getElementById("rtdbStatus");
+    if(!el){
+      el=document.createElement("div");
+      el.id="rtdbStatus";
+      el.style.cssText="position:fixed;right:10px;bottom:10px;z-index:99999;background:#111;border:1px solid #333;border-radius:9px;padding:7px 10px;color:#ddd;font:12px system-ui";
+      document.body.appendChild(el);
+    }
+    el.textContent=msg;
+    window.__grooveitLiveConnected = msg.includes("Gemeinsam verbunden") || msg.includes("Aktualisiert");
+  }
+
+  async function fetchWithTimeout(url, options={}, ms=8000){
+    const controller=new AbortController();
+    const t=setTimeout(()=>controller.abort(),ms);
+    try{
+      return await fetch(url,{...options,signal:controller.signal});
+    }finally{
+      clearTimeout(t);
+    }
+  }
+
   function eventId(name){
     try{
       const bytes=new TextEncoder().encode(String(name||""));
@@ -2175,12 +2197,12 @@ function toggleIdeaRec(){
   }
 
   async function readJSON(url){
-    const r=await fetch(url+(url.includes("?")?"&":"?")+"t="+Date.now(),{cache:"no-store"});
+    const r=await fetchWithTimeout(url+(url.includes("?")?"&":"?")+"t="+Date.now(),{cache:"no-store"});
     if(!r.ok) throw new Error("Lesen HTTP "+r.status);
     return await r.json();
   }
   async function putJSON(url,data){
-    const r=await fetch(url,{
+    const r=await fetchWithTimeout(url,{
       method:"PUT",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify(data)
@@ -2188,7 +2210,7 @@ function toggleIdeaRec(){
     if(!r.ok) throw new Error("Speichern HTTP "+r.status);
   }
   async function deleteJSON(url){
-    const r=await fetch(url,{method:"DELETE"});
+    const r=await fetchWithTimeout(url,{method:"DELETE"});
     if(!r.ok) throw new Error("Löschen HTTP "+r.status);
   }
 
@@ -2311,6 +2333,7 @@ function toggleIdeaRec(){
     if(syncBusy) return;
     syncBusy=true;
     try{
+      if(!ready) liveStatus("☁️ Verbinden …");
       const names=await syncNames();
       await Promise.all(names.map(syncOneEvent));
 
@@ -2321,8 +2344,11 @@ function toggleIdeaRec(){
       if(typeof renderTopAllIdeas==="function") renderTopAllIdeas();
       if(typeof renderEventManagerV13==="function") renderEventManagerV13();
       ready=true;
+      liveStatus("☁️ Gemeinsam verbunden");
     }catch(e){
       console.error("Grooveit Live Sync:",e);
+      const msg=(e && e.name==="AbortError") ? "Zeitüberschreitung" : (e && e.message ? e.message : String(e));
+      liveStatus("⚠️ Verbindung: "+msg);
     }finally{
       syncBusy=false;
     }
@@ -2445,6 +2471,13 @@ function toggleIdeaRec(){
   let lastRemote="";
   let pushTimer=null;
 
+  async function fetchWithTimeout(url,options={},ms=8000){
+    const controller=new AbortController();
+    const t=setTimeout(()=>controller.abort(),ms);
+    try{return await fetch(url,{...options,signal:controller.signal});}
+    finally{clearTimeout(t);}
+  }
+
   function relevant(k){
     return PREFIXES.some(p=>k===p || k.startsWith(p));
   }
@@ -2465,14 +2498,21 @@ function toggleIdeaRec(){
   }
 
   function status(msg){
-    let el=document.getElementById("rtdbStatus");
-    if(!el){
-      el=document.createElement("div");
-      el.id="rtdbStatus";
-      el.style.cssText="position:fixed;right:10px;bottom:10px;z-index:99999;background:#111;border:1px solid #333;border-radius:9px;padding:7px 10px;color:#ddd;font:12px system-ui";
-      document.body.appendChild(el);
+    // Der direkte Live-Sync für Events/STAFF/Ideen ist die maßgebliche Verbindung.
+    // Dieser ältere Zusatz-Sync darf dessen Status nicht mehr überschreiben.
+    if(msg && (msg.includes("Backup") || msg.includes("wiederhergestellt"))){
+      let el=document.getElementById("rtdbStatus");
+      if(!el){
+        el=document.createElement("div");
+        el.id="rtdbStatus";
+        el.style.cssText="position:fixed;right:10px;bottom:10px;z-index:99999;background:#111;border:1px solid #333;border-radius:9px;padding:7px 10px;color:#ddd;font:12px system-ui";
+        document.body.appendChild(el);
+      }
+      el.textContent=msg;
+      setTimeout(()=>{ if(window.__grooveitLiveConnected) el.textContent="☁️ Gemeinsam verbunden"; },1800);
+    }else{
+      console.log("Grooveit Zusatz-Sync:",msg);
     }
-    el.textContent=msg;
   }
 
   function applyRemote(remote){
@@ -2491,13 +2531,13 @@ function toggleIdeaRec(){
   }
 
   async function readRemote(){
-    const r=await fetch(STATE_URL+"?t="+Date.now(),{cache:"no-store"});
+    const r=await fetchWithTimeout(STATE_URL+"?t="+Date.now(),{cache:"no-store"});
     if(!r.ok) throw new Error("Lesen HTTP "+r.status+" "+await r.text());
     return await r.json();
   }
 
   async function writeRemote(data){
-    const r=await fetch(STATE_URL,{
+    const r=await fetchWithTimeout(STATE_URL,{
       method:"PUT",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify(data)
