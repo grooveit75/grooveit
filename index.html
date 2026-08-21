@@ -201,6 +201,15 @@ textarea{min-height:130px;resize:vertical}
 .grooveCalendarWeek span{font-size:11px;color:#8f8f98;text-align:center;padding:4px 0}
 .grooveCalendarDay{aspect-ratio:1/1;border:1px solid #303036;background:#111;color:#eee;border-radius:9px;display:grid;place-items:center;cursor:pointer;min-height:36px}
 .grooveCalendarDay.other{opacity:.28}.grooveCalendarDay.today{border-color:#aaa}.grooveCalendarDay.selected{background:#fff;color:#080808;border-color:#fff;font-weight:900}
+
+.partyModal{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9999;padding:18px;overflow:auto}
+.partyModalBox{max-width:560px;margin:30px auto;background:#0d0d0f;border:1px solid #34343a;border-radius:16px;padding:18px}
+.partyCalendar{border:1px solid #303036;border-radius:14px;background:#09090a;padding:12px;margin:8px 0 14px}
+.partyCalendarHead{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:8px;text-align:center;margin-bottom:10px}
+.partyCalendarWeek,.partyCalendarGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.partyCalendarWeek span{font-size:11px;color:#8f8f98;text-align:center;padding:4px 0}
+.partyCalendarDay{aspect-ratio:1/1;border:1px solid #303036;background:#111;color:#eee;border-radius:9px;display:grid;place-items:center;min-height:36px}
+.partyCalendarDay.other{opacity:.28}.partyCalendarDay.today{border-color:#aaa}.partyCalendarDay.selected{background:#fff;color:#080808;border-color:#fff;font-weight:900}
 </style>
 </head>
 <body>
@@ -299,7 +308,7 @@ textarea{min-height:130px;resize:vertical}
       <h2>💬 STAFF-Feedback</h2><div class="sub">Teile deine Wahrnehmung der Party</div>
       <label>Event</label>
       <select id="event" onchange="switchEvent()"></select>
-      <div class="eventtools"><button onclick="newEvent()">＋ Party erstellen</button><button class="danger" onclick="deleteCurrentEvent()">🗑 Party löschen</button></div>
+      <div class="eventtools"><button class="danger" onclick="deleteCurrentEvent()">🗑 Party löschen</button></div>
       <label>Dein Name</label>
       <input id="name" placeholder="z. B. Matteo">
       <label>Sprache</label>
@@ -836,14 +845,7 @@ function buildSummary(){
  li("next",next);
 }
 function newEvent(){
- const n=prompt("Name der neuen Party:");
- if(!n) return;
- const name=n.trim();
- if(!name) return;
- if(events[name]) return alert("Diese Party existiert bereits.");
- events[name]=[];
- currentEvent=name;
- save(); render(); resetSummary(); renderAIResult(); document.getElementById("aiExport").value=""; renderAIResult();
+  openPartyModal();
 }
 function deleteCurrentEvent(){
  const names=Object.keys(events);
@@ -2245,6 +2247,48 @@ window.addEventListener("load",()=>{renderTaskModule();renderAllTasksTop();rende
 })();
 </script>
 
+
+<script>
+(function(){
+const PARTY_META="grooveitPartyMeta";
+const getMeta=()=>{try{return JSON.parse(localStorage.getItem(PARTY_META)||"{}")}catch(e){return {}}};
+const saveMeta=x=>localStorage.setItem(PARTY_META,JSON.stringify(x));
+let pcm=new Date(); pcm=new Date(pcm.getFullYear(),pcm.getMonth(),1);
+const p2=n=>String(n).padStart(2,"0"),iso=(y,m,d)=>y+"-"+p2(m+1)+"-"+p2(d);
+
+window.openPartyModal=function(){
+  ["partyNewName","partyNewDate","partyNewPlace","partyNewResponsible"].forEach(id=>{let e=document.getElementById(id);if(e)e.value=""});
+  let l=document.getElementById("partyCalendarSelected");if(l)l.textContent="noch kein Datum";
+  pcm=new Date();pcm=new Date(pcm.getFullYear(),pcm.getMonth(),1);
+  document.getElementById("partyModal").style.display="block";renderPartyCalendar();
+};
+window.closePartyModal=()=>document.getElementById("partyModal").style.display="none";
+window.renderPartyCalendar=function(){
+ let g=document.getElementById("partyCalendarGrid"),t=document.getElementById("partyCalendarTitle");if(!g||!t)return;
+ let y=pcm.getFullYear(),m=pcm.getMonth(),f=new Date(y,m,1),off=(f.getDay()+6)%7,start=new Date(y,m,1-off);
+ t.textContent=new Intl.DateTimeFormat("de-CH",{month:"long",year:"numeric"}).format(pcm);
+ let sel=document.getElementById("partyNewDate")?.value||"",n=new Date(),today=iso(n.getFullYear(),n.getMonth(),n.getDate()),out="";
+ for(let i=0;i<42;i++){let d=new Date(start);d.setDate(start.getDate()+i);let s=iso(d.getFullYear(),d.getMonth(),d.getDate()),c=["partyCalendarDay"];if(d.getMonth()!=m)c.push("other");if(s===today)c.push("today");if(s===sel)c.push("selected");out+=`<button type="button" class="${c.join(" ")}" onclick="partyCalSelect('${s}')">${d.getDate()}</button>`}
+ g.innerHTML=out;
+};
+window.partyCalPrev=()=>{pcm=new Date(pcm.getFullYear(),pcm.getMonth()-1,1);renderPartyCalendar()};
+window.partyCalNext=()=>{pcm=new Date(pcm.getFullYear(),pcm.getMonth()+1,1);renderPartyCalendar()};
+window.partyCalSelect=s=>{document.getElementById("partyNewDate").value=s;document.getElementById("partyCalendarSelected").textContent=new Date(s+"T12:00:00").toLocaleDateString("de-CH");let p=s.split("-").map(Number);pcm=new Date(p[0],p[1]-1,1);renderPartyCalendar()};
+window.saveNewParty=function(){
+ let name=(document.getElementById("partyNewName").value||"").trim(),date=document.getElementById("partyNewDate").value,place=(document.getElementById("partyNewPlace").value||"").trim(),responsible=(document.getElementById("partyNewResponsible").value||"").trim();
+ if(!name)return alert("Bitte Partyname eingeben.");if(!date)return alert("Bitte Datum im Kalender auswählen.");if(!place)return alert("Bitte Ort eingeben.");
+ if(events[name])return alert("Diese Party existiert bereits.");
+ events[name]=[];currentEvent=name;
+ let meta=getMeta();meta[name]={date,place,responsible};saveMeta(meta);
+ save();render();resetSummary();renderAIResult();renderIdeas();closePartyModal();
+ if(typeof syncPartyTab==="function")syncPartyTab();
+};
+window.partyLabel=function(name){
+ let m=getMeta()[name];return m?`${name} – ${new Date(m.date+"T12:00:00").toLocaleDateString("de-CH")} – ${m.place}`:name;
+};
+})();
+</script>
+
 <script>
 (function(){
   const DB="https://grooveit-3ea02-default-rtdb.firebaseio.com";
@@ -2529,6 +2573,25 @@ window.addEventListener("load",()=>{renderTaskModule();renderAllTasksTop();rende
   window.addEventListener("load",initCloud);
 })();
 </script>
+
+
+<div id="partyModal" class="partyModal" style="display:none">
+  <div class="partyModalBox">
+    <div class="mainhead"><h2>🎉 Neue Party</h2><button class="deletebtn" onclick="closePartyModal()">✕</button></div>
+    <label>Partyname</label><input id="partyNewName" class="field" placeholder="Name der Party">
+    <label>Datum</label>
+    <div class="partyCalendar">
+      <div class="partyCalendarHead"><button type="button" class="btn" onclick="partyCalPrev()">‹</button><strong id="partyCalendarTitle"></strong><button type="button" class="btn" onclick="partyCalNext()">›</button></div>
+      <div class="partyCalendarWeek"><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span></div>
+      <div id="partyCalendarGrid" class="partyCalendarGrid"></div>
+      <div class="sub">Ausgewählt: <strong id="partyCalendarSelected">noch kein Datum</strong></div>
+      <input id="partyNewDate" type="hidden">
+    </div>
+    <label>Ort</label><input id="partyNewPlace" class="field" placeholder="Wo findet die Party statt?">
+    <label>Verantwortlich / Name</label><input id="partyNewResponsible" class="field" placeholder="Wer ist verantwortlich?">
+    <div class="actions"><button class="btn" onclick="closePartyModal()">Abbrechen</button><button class="btn primary" onclick="saveNewParty()">Party speichern</button></div>
+  </div>
+</div>
 
 </body>
 </html>
