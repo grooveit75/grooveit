@@ -194,12 +194,6 @@ textarea{min-height:130px;resize:vertical}
 .guest-table td:last-child{border-right:1px solid #27272c;border-radius:0 9px 9px 0}
 @media(max-width:800px){.guest-layout,.guest-kpis{grid-template-columns:1fr}.guest-table{display:block;overflow-x:auto}}
 
-
-.gtv2Input{width:100%;background:#080809;color:#fff;border:1px solid #37373d;border-radius:10px;padding:11px;margin:6px 0}
-.gtv2Row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.gtv2Btn{background:#151518;color:#fff;border:1px solid #3b3b41;border-radius:9px;padding:9px 11px;font-weight:800;cursor:pointer}
-.gtv2Primary{background:#fff;color:#080808;border-color:#fff}.gtv2Card{border:1px solid #303036;border-radius:12px;padding:12px;margin:9px 0;background:#09090a}
-.gtv2Meta{font-size:12px;color:#999;margin-top:5px}.gtv2Open{color:#ffbd3b}.gtv2Done{color:#55d58a}.gtv2Over{color:#ff6258}.gtv2Tiny{font-size:12px;color:#999}
-.gtv2Grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:700px){.gtv2Grid2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -209,6 +203,7 @@ textarea{min-height:130px;resize:vertical}
   <b id="navOverview" onclick="showTopView('overview')" style="cursor:pointer">Übersicht</b>
   <span id="navAll" onclick="showTopView('all')" style="cursor:pointer">Alle Feedbacks</span>
   <span id="navIdeasAll" onclick="showTopView('ideasAll')" style="cursor:pointer">Alle Ideen</span>
+  <span id="navTasksAll" onclick="showTopView('tasksAll')" style="cursor:pointer">Alle Aufgaben</span>
   <span id="navStats" onclick="showTopView('stats')" style="cursor:pointer">Statistik</span>
   <span id="navEvents" onclick="showTopView('events')" style="cursor:pointer">Events</span>
 </nav>
@@ -239,6 +234,9 @@ textarea{min-height:130px;resize:vertical}
   </div>
 </main>
 
+<main class="wrap" id="tasksAllTop" style="display:none">
+  <section class="card pad"><h2>📋 Alle Aufgaben</h2><div id="tasksAllTopList"></div></section>
+</main>
 <main class="wrap" id="statsTop" style="display:none">
   <div class="card pad"><h2>Statistik</h2><div class="sub">Statistik wird separat aufgebaut.</div></div>
 </main>
@@ -257,7 +255,6 @@ textarea{min-height:130px;resize:vertical}
   <button class="main-tab active" data-tab="feedback" onclick="showMainTab('feedback',this)">💬 STAFF-Feedback</button>
   <button class="main-tab" data-tab="ideas" onclick="showMainTab('ideas',this)">💡 Ideen</button>
   <button class="main-tab" data-tab="tasks" onclick="showMainTab('tasks',this)">📋 Aufgaben</button>
-  <button class="main-tab" data-tab="alltasks" onclick="showMainTab('alltasks',this)">📋 Alle Aufgaben</button>
   <button class="main-tab" data-tab="dates" onclick="showMainTab('dates',this)">📅 Termine</button>
   <button class="main-tab" data-tab="guests" onclick="showMainTab('guests',this)">👥 Gästezähler</button>
   <button class="main-tab" data-tab="admin" onclick="showMainTab('admin',this)">🔒 Admin</button>
@@ -266,25 +263,16 @@ textarea{min-height:130px;resize:vertical}
 <div id="tabFeedback" class="tab-page active"></div>
 
 <div id="tabAI" class="tab-page" style="display:none"></div>
-
 <div id="tabIdeas" class="tab-page"></div>
-<div id="tabTasks" class="tab-page"><div class="card pad">
-<h2>📋 Aufgaben</h2><div class="sub">Aufgaben für das aktuell gewählte Event.</div>
-<textarea id="gtv2TaskText" class="gtv2Input" placeholder="Neue Aufgabe…"></textarea>
-<div class="gtv2Grid2"><input id="gtv2TaskPerson" class="gtv2Input" placeholder="Verantwortlich (optional)"><input id="gtv2TaskDue" type="date" class="gtv2Input"></div>
-<div class="gtv2Row"><button class="gtv2Btn" onclick="gtv2SpeakInto('gtv2TaskText')">🎙 Aufgabe sprechen</button><button class="gtv2Btn gtv2Primary" onclick="gtv2AddTask()">＋ Aufgabe speichern</button></div>
-<div id="gtv2TaskList"></div></div></div>
-<div id="tabAllTasks" class="tab-page"><div class="card pad"><h2>📋 Alle Aufgaben</h2><div class="sub">Überfällig → mit Termin → ohne Termin → erledigt.</div><div id="gtv2AllList"></div></div></div>
-<div id="tabDates" class="tab-page"><div class="card pad">
-<h2>📅 Termine</h2><div class="sub">Gemeinsame Termine mit Teilnehmern, Ort und Notiz.</div>
-<input id="gtv2DateTitle" class="gtv2Input" placeholder="Termin / Titel">
-<div class="gtv2Grid2"><input id="gtv2DateDay" type="date" class="gtv2Input"><input id="gtv2DateTime" type="time" class="gtv2Input"></div>
-<input id="gtv2DatePlace" class="gtv2Input" placeholder="Ort"><input id="gtv2DatePeople" class="gtv2Input" placeholder="Teilnehmer, z. B. Matteo, Fausto">
-<textarea id="gtv2DateNote" class="gtv2Input" placeholder="Notiz"></textarea>
-<div class="gtv2Row"><button class="gtv2Btn" onclick="gtv2SpeakInto('gtv2DateTitle')">🎙 Titel sprechen</button><button class="gtv2Btn" onclick="gtv2SpeakInto('gtv2DateNote')">🎙 Notiz sprechen</button><button class="gtv2Btn gtv2Primary" onclick="gtv2AddDate()">＋ Termin speichern</button></div>
-<div id="gtv2DateList"></div></div></div>
+<div id="tabTasks" class="tab-page"><div class="card pad"><h2>📋 Aufgaben</h2>
+<textarea id="taskText" class="field" placeholder="Neue Aufgabe…"></textarea>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="taskPerson" class="field" placeholder="Verantwortlich (optional)"><input id="taskDue" type="date" class="field"></div>
+<div class="actions"><button class="btn" onclick="taskSpeak('taskText')">🎙 Sprechen</button><button class="btn primary" onclick="addTask()">＋ Speichern</button></div><div id="taskList"></div></div></div>
+<div id="tabDates" class="tab-page"><div class="card pad"><h2>📅 Termine</h2>
+<input id="dateTitle" class="field" placeholder="Termin / Titel"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="dateDay" type="date" class="field"><input id="dateTime" type="time" class="field"></div>
+<input id="datePlace" class="field" placeholder="Ort"><input id="datePeople" class="field" placeholder="Teilnehmer"><textarea id="dateNote" class="field" placeholder="Notiz"></textarea>
+<div class="actions"><button class="btn" onclick="taskSpeak('dateTitle')">🎙 Titel</button><button class="btn" onclick="taskSpeak('dateNote')">🎙 Notiz</button><button class="btn primary" onclick="addAppointment()">＋ Termin speichern</button></div><div id="dateList"></div></div></div>
 <div id="tabGuests" class="tab-page"></div>
-
 <div id="tabAdmin" class="tab-page"></div>
 
   <div class="grid">
@@ -574,7 +562,7 @@ function render(){
  const data=currentData();
  const box=document.getElementById("feedbackList");
  if(!data.length){box.innerHTML='<div class="empty">Noch keine Wahrnehmungen vorhanden.</div>';return;}
- box.innerHTML=data.map((x,i)=>`<div class="feedback"><div class="row"><div class="avatar">${esc(x.name.charAt(0).toUpperCase())}</div><div style="flex:1"><div class="meta"><span class="name">${esc(x.name)}</span><span class="date">${esc(x.date)}</span><span class="badge">Wahrnehmung</span><button class="voteBtn" onclick="gtv2FromFeedback(${i})">→ Aufgabe</button><button class="deletebtn" onclick="deleteFeedback(${i})">🗑 Löschen</button></div><div class="text">${esc(x.text)}</div></div></div></div>`).join("");
+ box.innerHTML=data.map((x,i)=>`<div class="feedback"><div class="row"><div class="avatar">${esc(x.name.charAt(0).toUpperCase())}</div><div style="flex:1"><div class="meta"><span class="name">${esc(x.name)}</span><span class="date">${esc(x.date)}</span><span class="badge">Wahrnehmung</span><button class="voteBtn" onclick="feedbackToTask(${i})">→ Als Aufgabe</button><button class="deletebtn" onclick="deleteFeedback(${i})">🗑 Löschen</button></div><div class="text">${esc(x.text)}</div></div></div></div>`).join("");
 }
 function deleteFeedback(index){
  const data=currentData();
@@ -898,7 +886,7 @@ function renderIdeas(){
         <div>${esc(x.text)}</div>
       </div>
       <button class="voteBtn" onclick="voteIdea(${i})">👍 ${x.votes||0}</button>
-      <button class="voteBtn" onclick="gtv2FromIdea(${i})">→ Aufgabe</button>
+      <button class="voteBtn" onclick="ideaToTask(${i})">→ Als Aufgabe</button>
       <button class="deletebtn" onclick="deleteIdea(${i})">🗑</button>
     </div>`).join(""):'<div class="empty">Noch keine Ideen für diese Party.</div>';
 }
@@ -1098,12 +1086,12 @@ renderIdeas();
 function showMainTab(name,btn){
   document.querySelectorAll(".tab-page").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll(".main-tab").forEach(x=>x.classList.remove("active"));
-  const map={party:"tabParty",feedback:"tabFeedback",ai:"tabAI",ideas:"tabIdeas",tasks:"tabTasks",alltasks:"tabAllTasks",dates:"tabDates",guests:"tabGuests",admin:"tabAdmin"};
+  const map={party:"tabParty",feedback:"tabFeedback",ai:"tabAI",ideas:"tabIdeas",tasks:"tabTasks",dates:"tabDates",guests:"tabGuests",admin:"tabAdmin"};
   const target=document.getElementById(map[name]);
   if(target) target.classList.add("active");
   if(btn) btn.classList.add("active");
   if(name==="ideas") renderIdeas();
-  if((name==="tasks"||name==="alltasks"||name==="dates")&&typeof gtv2Render==="function")gtv2Render();
+  if((name==="tasks"||name==="dates")&&typeof renderTaskModule==="function")renderTaskModule();
   if(name==="guests") renderGuestCounter();
   if(name==="admin" && adminSession) renderAdmin();
   if(name==="ai") renderAIResult();
@@ -1916,7 +1904,7 @@ function renderAllFeedbacksArchiveV12_OLD_DISABLED(){
 
 // --- V13: klare Trennung Übersicht / Alle Feedbacks ---
 function setTopNavActive(view){
-  const ids={overview:"navOverview",all:"navAll",ideasAll:"navIdeasAll",stats:"navStats",events:"navEvents"};
+  const ids={overview:"navOverview",all:"navAll",ideasAll:"navIdeasAll",tasksAll:"navTasksAll",stats:"navStats",events:"navEvents"};
   Object.values(ids).forEach(id=>{
     const el=document.getElementById(id);
     if(!el)return;
@@ -1938,6 +1926,7 @@ function showTopView(view){
     overview:document.getElementById("overviewTop"),
     all:document.getElementById("allFeedbacksTop"),
     ideasAll:document.getElementById("allIdeasTop"),
+    tasksAll:document.getElementById("tasksAllTop"),
     stats:document.getElementById("statsTop"),
     events:document.getElementById("eventsTop")
   };
@@ -1946,6 +1935,7 @@ function showTopView(view){
   setTopNavActive(view);
   if(view==="all")renderTopAllFeedbacks();
   if(view==="ideasAll")renderTopAllIdeas();
+  if(view==="tasksAll"&&typeof renderAllTasksTop==="function")renderAllTasksTop();
   if(view==="events")renderEventManagerV13();
 }
 
@@ -2187,36 +2177,24 @@ function toggleIdeaRec(){
 <script>
 (function(){
 const TP="grooveitTasks::", DK="grooveitAppointments";
-const gj=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(d))}catch(e){return d}};
-const sj=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
-const ev=()=>typeof currentEvent!=="undefined"?currentEvent:(localStorage.getItem("grooveitCurrentEvent")||"Ohne Event");
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
-const td=()=>new Date().toISOString().slice(0,10);
-const hh=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
-
-window.gtv2AddTask=function(text,source,person){
- const f=document.getElementById("gtv2TaskText"),t=(text||(f?.value||"")).trim();if(!t)return alert("Bitte Aufgabe eingeben.");
- const e=ev(),k=TP+e,a=gj(k);a.unshift({id:uid(),text:t,person:(person||(document.getElementById("gtv2TaskPerson")?.value||"")).trim(),due:document.getElementById("gtv2TaskDue")?.value||"",status:"open",source:source||"direkt",event:e,created:new Date().toISOString()});sj(k,a);if(f)f.value="";gtv2Render();
-};
-window.gtv2FromFeedback=i=>{const x=currentData()[i];if(x&&confirm("Dieses STAFF-Feedback als Aufgabe übernehmen?")){gtv2AddTask(x.text,"STAFF-Feedback",x.name);const b=[...document.querySelectorAll(".main-tab")].find(x=>x.dataset.tab==="tasks");showMainTab("tasks",b)}};
-window.gtv2FromIdea=i=>{const x=getIdeas()[i];if(x&&confirm("Diese Idee als Aufgabe übernehmen?")){gtv2AddTask(x.text,"Idee",x.name);const b=[...document.querySelectorAll(".main-tab")].find(x=>x.dataset.tab==="tasks");showMainTab("tasks",b)}};
-window.gtv2ToggleTask=(e,id)=>{const k=TP+e,a=gj(k),x=a.find(z=>z.id===id);if(!x)return;x.status=x.status==="done"?"open":"done";sj(k,a);gtv2Render()};
-window.gtv2SetDue=(e,id,v)=>{const k=TP+e,a=gj(k),x=a.find(z=>z.id===id);if(x){x.due=v||"";sj(k,a);gtv2Render()}};
-window.gtv2SetPerson=(e,id,v)=>{const k=TP+e,a=gj(k),x=a.find(z=>z.id===id);if(x){x.person=(v||"").trim();sj(k,a);gtv2Render()}};
-window.gtv2DeleteTask=(e,id)=>{if(confirm("Aufgabe löschen?")){const k=TP+e;sj(k,gj(k).filter(x=>x.id!==id));gtv2Render()}};
-
-function all(){const o=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(TP))o.push(...gj(k))}const r=x=>x.status==="done"?3:(x.due&&x.due<td()?0:(x.due?1:2));return o.sort((a,b)=>r(a)-r(b)||String(a.due||"9999").localeCompare(String(b.due||"9999")))}
-function card(x){const ov=x.status!=="done"&&x.due&&x.due<td(),lab=x.status==="done"?"✅ ERLEDIGT":ov?"🔴 ÜBERFÄLLIG":"🟠 OFFEN";return `<div class="gtv2Card"><b>${hh(x.text)}</b><div class="gtv2Meta">Event: ${hh(x.event)} · Quelle: ${hh(x.source)}</div><div class="gtv2Grid2"><input class="gtv2Input" value="${hh(x.person||"")}" placeholder="Verantwortlich" onchange='gtv2SetPerson(${JSON.stringify(x.event)},${JSON.stringify(x.id)},this.value)'><input type="date" class="gtv2Input" value="${hh(x.due||"")}" onchange='gtv2SetDue(${JSON.stringify(x.event)},${JSON.stringify(x.id)},this.value)'></div><div class="gtv2Row"><button class="gtv2Btn" onclick='gtv2ToggleTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>${lab}</button><button class="gtv2Btn" onclick='gtv2DeleteTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>🗑</button></div></div>`}
-
-window.gtv2AddDate=function(){const title=(document.getElementById("gtv2DateTitle")?.value||"").trim();if(!title)return alert("Bitte Termin eingeben.");const a=gj(DK);a.push({id:uid(),title,date:document.getElementById("gtv2DateDay")?.value||"",time:document.getElementById("gtv2DateTime")?.value||"",place:(document.getElementById("gtv2DatePlace")?.value||"").trim(),people:(document.getElementById("gtv2DatePeople")?.value||"").trim(),note:(document.getElementById("gtv2DateNote")?.value||"").trim(),event:ev()});sj(DK,a);gtv2Render()};
-window.gtv2DeleteDate=id=>{if(confirm("Termin löschen?")){sj(DK,gj(DK).filter(x=>x.id!==id));gtv2Render()}};
-
-window.gtv2Render=function(){const t=document.getElementById("gtv2TaskList");if(t)t.innerHTML=gj(TP+ev()).map(card).join("")||'<div class="empty">Noch keine Aufgaben.</div>';const a=document.getElementById("gtv2AllList");if(a)a.innerHTML=all().map(card).join("")||'<div class="empty">Noch keine Aufgaben.</div>';const d=document.getElementById("gtv2DateList");if(d)d.innerHTML=gj(DK).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(x=>`<div class="gtv2Card"><b>📅 ${hh(x.date||"ohne Datum")} ${hh(x.time||"")} · ${hh(x.title)}</b><div class="gtv2Meta">📍 ${hh(x.place||"ohne Ort")} · 👥 ${hh(x.people||"keine Teilnehmer")} · Event: ${hh(x.event)}</div>${x.note?`<div>${hh(x.note)}</div>`:""}<div class="gtv2Row"><button class="gtv2Btn" onclick='gtv2DeleteDate(${JSON.stringify(x.id)})'>🗑</button></div></div>`).join("")||'<div class="empty">Noch keine Termine.</div>'};
-
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-function mg(a,b){a=String(a||"").replace(/\s+/g," ").trim();b=String(b||"").replace(/\s+/g," ").trim();if(!a)return b;if(!b)return a;const al=a.toLowerCase(),bl=b.toLowerCase();if(al===bl||al.includes(bl))return a;if(bl.startsWith(al+" "))return b;const A=a.split(" "),B=b.split(" ");for(let n=Math.min(A.length,B.length);n>0;n--)if(A.slice(-n).join(" ").toLowerCase()===B.slice(0,n).join(" ").toLowerCase())return(a+" "+B.slice(n).join(" ")).trim();return a+" "+b}
-window.gtv2SpeakInto=id=>{if(!SR)return alert("Spracherkennung nicht unterstützt.");const e=document.getElementById(id),base=e?.value||"",r=new SR();r.lang="de-CH";r.continuous=true;r.interimResults=true;r.onresult=x=>{const f=[];for(let i=0;i<x.results.length;i++)if(x.results[i].isFinal)f.push(x.results[i][0].transcript);let s="";f.forEach(v=>s=mg(s,v));if(e)e.value=mg(base,s)};r.start();setTimeout(()=>{try{r.stop()}catch(_){}},12000)};
-window.addEventListener("load",gtv2Render);
+const J=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(d))}catch(e){return d}}, S=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+const EV=()=>typeof currentEvent!=="undefined"?currentEvent:"Ohne Event", ID=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7), TODAY=()=>new Date().toISOString().slice(0,10);
+const H=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+window.addTask=(text,source,person)=>{let f=document.getElementById("taskText"),t=(text||(f?.value||"")).trim();if(!t)return alert("Bitte Aufgabe eingeben.");let e=EV(),k=TP+e,a=J(k);a.unshift({id:ID(),text:t,person:person||(document.getElementById("taskPerson")?.value||""),due:document.getElementById("taskDue")?.value||"",status:"open",source:source||"Direkt",event:e});S(k,a);if(f)f.value="";renderTaskModule()};
+window.feedbackToTask=i=>{let x=currentData()[i];if(x&&confirm("Dieses Feedback als Aufgabe übernehmen?")){addTask(x.text,"STAFF-Feedback",x.name||"");alert("Als Aufgabe übernommen.")}};
+window.ideaToTask=i=>{let x=getIdeas()[i];if(x&&confirm("Diese Idee als Aufgabe übernehmen?")){addTask(x.text,"Idee",x.name||"");alert("Als Aufgabe übernommen.")}};
+window.toggleTask=(e,id)=>{let k=TP+e,a=J(k),x=a.find(z=>z.id===id);if(x){x.status=x.status==="done"?"open":"done";S(k,a);renderTaskModule();renderAllTasksTop()}};
+window.setDue=(e,id,v)=>{let k=TP+e,a=J(k),x=a.find(z=>z.id===id);if(x){x.due=v||"";S(k,a);renderTaskModule();renderAllTasksTop()}};
+window.delTask=(e,id)=>{if(confirm("Aufgabe löschen?")){let k=TP+e;S(k,J(k).filter(x=>x.id!==id));renderTaskModule();renderAllTasksTop()}};
+function all(){let o=[];for(let i=0;i<localStorage.length;i++){let k=localStorage.key(i);if(k&&k.startsWith(TP))o=o.concat(J(k))}let r=x=>x.status==="done"?3:(x.due&&x.due<TODAY()?0:(x.due?1:2));return o.sort((a,b)=>r(a)-r(b)||String(a.due||"9999").localeCompare(String(b.due||"9999")))}
+function card(x){let ov=x.status!=="done"&&x.due&&x.due<TODAY(),lab=x.status==="done"?"✅ ERLEDIGT":ov?"🔴 ÜBERFÄLLIG":"🟠 OFFEN";return `<div class="feedback"><div class="meta"><span class="name">${H(x.text)}</span></div><div class="text">${H(x.event)} · ${H(x.person||"ohne Verantwortlichen")} · ${H(x.source)}</div><input type="date" class="field" value="${H(x.due||"")}" onchange='setDue(${JSON.stringify(x.event)},${JSON.stringify(x.id)},this.value)'><div class="actions"><button class="btn" onclick='toggleTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>${lab}</button><button class="deletebtn" onclick='delTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>🗑</button></div></div>`}
+window.renderAllTasksTop=()=>{let x=document.getElementById("tasksAllTopList");if(x)x.innerHTML=all().map(card).join("")||'<div class="empty">Noch keine Aufgaben.</div>'};
+window.addAppointment=()=>{let title=(document.getElementById("dateTitle")?.value||"").trim();if(!title)return alert("Bitte Termin eingeben.");let a=J(DK);a.push({id:ID(),title,date:document.getElementById("dateDay")?.value||"",time:document.getElementById("dateTime")?.value||"",place:document.getElementById("datePlace")?.value||"",people:document.getElementById("datePeople")?.value||"",note:document.getElementById("dateNote")?.value||"",event:EV()});S(DK,a);renderTaskModule()};
+window.delAppointment=id=>{if(confirm("Termin löschen?")){S(DK,J(DK).filter(x=>x.id!==id));renderTaskModule()}};
+window.renderTaskModule=()=>{let t=document.getElementById("taskList");if(t)t.innerHTML=J(TP+EV()).map(card).join("")||'<div class="empty">Noch keine Aufgaben.</div>';let d=document.getElementById("dateList");if(d)d.innerHTML=J(DK).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(x=>`<div class="feedback"><div class="meta"><span class="name">📅 ${H(x.date||"ohne Datum")} ${H(x.time||"")} · ${H(x.title)}</span></div><div class="text">📍 ${H(x.place||"ohne Ort")} · 👥 ${H(x.people||"keine Teilnehmer")} · ${H(x.event)}</div>${x.note?`<div class="text">${H(x.note)}</div>`:""}<button class="deletebtn" onclick='delAppointment(${JSON.stringify(x.id)})'>🗑</button></div>`).join("")||'<div class="empty">Noch keine Termine.</div>';renderAllTasksTop()};
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;function M(a,b){a=String(a||"").trim();b=String(b||"").trim();if(!a)return b;if(!b)return a;if(a.toLowerCase().includes(b.toLowerCase()))return a;let A=a.split(" "),B=b.split(" ");for(let n=Math.min(A.length,B.length);n;n--)if(A.slice(-n).join(" ").toLowerCase()===B.slice(0,n).join(" ").toLowerCase())return(a+" "+B.slice(n).join(" ")).trim();return a+" "+b}
+window.taskSpeak=id=>{if(!SR)return alert("Spracherkennung nicht unterstützt.");let e=document.getElementById(id),base=e.value,r=new SR();r.lang="de-CH";r.continuous=true;r.interimResults=true;r.onresult=x=>{let f=[];for(let i=0;i<x.results.length;i++)if(x.results[i].isFinal)f.push(x.results[i][0].transcript);let s="";f.forEach(v=>s=M(s,v));e.value=M(base,s)};r.start();setTimeout(()=>{try{r.stop()}catch(_){}},12000)};
+window.addEventListener("load",()=>{renderTaskModule();renderAllTasksTop()});
 })();
 </script>
 
@@ -2233,8 +2211,6 @@ window.addEventListener("load",gtv2Render);
     "grooveitEvents",
     "grooveitCurrentEvent",
     "grooveitIdeas::",
-    "grooveitTasks::",
-    "grooveitAppointments",
     "grooveitFinance::",
     "grooveitAISummary::",
     "grooveitIdeasAI::",
@@ -2504,9 +2480,6 @@ window.addEventListener("load",gtv2Render);
   window.addEventListener("load",initCloud);
 })();
 </script>
-
-
-
 
 </body>
 </html>
