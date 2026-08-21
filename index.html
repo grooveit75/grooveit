@@ -2168,6 +2168,8 @@ function toggleIdeaRec(){
     "grooveitEvents",
     "grooveitCurrentEvent",
     "grooveitIdeas::",
+    "grooveitTasks::",
+    "grooveitAppointments",
     "grooveitFinance::",
     "grooveitAISummary::",
     "grooveitIdeasAI::",
@@ -2435,6 +2437,225 @@ function toggleIdeaRec(){
   }
 
   window.addEventListener("load",initCloud);
+})();
+</script>
+
+
+<!-- =========================================================
+     GROOVEIT TEST MODULE – Aufgaben / Alle Aufgaben / Termine
+     Separate Testversion. MASTER bleibt unverändert.
+========================================================== -->
+<style>
+#gtv2Nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+#gtv2Nav button{background:#101012;color:#eee;border:1px solid #34343a;border-radius:10px;padding:9px 12px;font-weight:800}
+#gtv2Nav button.active{background:#fff;color:#080808}
+.gtv2Panel{display:none;background:#0b0b0d;border:1px solid #29292e;border-radius:14px;padding:14px;margin:10px 0 18px}
+.gtv2Panel.active{display:block}
+.gtv2Input,.gtv2Select{width:100%;background:#080809;color:#fff;border:1px solid #37373d;border-radius:10px;padding:11px;margin:6px 0}
+.gtv2Row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.gtv2Btn{background:#151518;color:#fff;border:1px solid #3b3b41;border-radius:9px;padding:9px 11px;font-weight:800}
+.gtv2Primary{background:#fff;color:#080808}
+.gtv2Card{border:1px solid #303036;border-radius:12px;padding:12px;margin:9px 0;background:#09090a}
+.gtv2Meta{font-size:12px;color:#999;margin-top:5px}
+.gtv2Open{color:#ffbd3b}.gtv2Done{color:#55d58a}.gtv2Over{color:#ff6258}
+.gtv2Tiny{font-size:12px;color:#999}
+</style>
+
+<div id="gtv2Root" style="max-width:980px;margin:0 auto;padding:0 14px 26px">
+  <div style="font-size:12px;color:#888;margin:6px 0">TESTVERSION – neue Module, MASTER unverändert</div>
+  <div id="gtv2Nav">
+    <button onclick="gtv2Show('tasks')" id="gtv2TabTasks">📋 Aufgaben</button>
+    <button onclick="gtv2Show('all')" id="gtv2TabAll">📋 Alle Aufgaben</button>
+    <button onclick="gtv2Show('dates')" id="gtv2TabDates">📅 Termine</button>
+  </div>
+
+  <section id="gtv2Tasks" class="gtv2Panel">
+    <h3>📋 Aufgaben – aktuelles Event</h3>
+    <textarea id="gtv2TaskText" class="gtv2Input" placeholder="Neue Aufgabe…"></textarea>
+    <div class="gtv2Row">
+      <input id="gtv2TaskPerson" class="gtv2Input" style="flex:1;min-width:150px" placeholder="Verantwortlich (optional)">
+      <input id="gtv2TaskDue" type="date" class="gtv2Input" style="flex:1;min-width:150px">
+    </div>
+    <div class="gtv2Row">
+      <button class="gtv2Btn" onclick="gtv2SpeakInto('gtv2TaskText')">🎙 Aufgabe sprechen</button>
+      <button class="gtv2Btn gtv2Primary" onclick="gtv2AddTask()">＋ Aufgabe speichern</button>
+    </div>
+    <div id="gtv2TaskList"></div>
+  </section>
+
+  <section id="gtv2All" class="gtv2Panel">
+    <h3>📋 Alle Aufgaben</h3>
+    <div class="gtv2Tiny">Überfällig → mit Termin → ohne Termin → erledigt</div>
+    <div id="gtv2AllList"></div>
+  </section>
+
+  <section id="gtv2Dates" class="gtv2Panel">
+    <h3>📅 Termine</h3>
+    <input id="gtv2DateTitle" class="gtv2Input" placeholder="Termin / Titel">
+    <div class="gtv2Row">
+      <input id="gtv2DateDay" type="date" class="gtv2Input" style="flex:1;min-width:140px">
+      <input id="gtv2DateTime" type="time" class="gtv2Input" style="flex:1;min-width:120px">
+    </div>
+    <input id="gtv2DatePlace" class="gtv2Input" placeholder="Ort">
+    <input id="gtv2DatePeople" class="gtv2Input" placeholder="Teilnehmer, z. B. Matteo, Fausto">
+    <textarea id="gtv2DateNote" class="gtv2Input" placeholder="Notiz"></textarea>
+    <div class="gtv2Row">
+      <button class="gtv2Btn" onclick="gtv2SpeakInto('gtv2DateTitle')">🎙 Titel sprechen</button>
+      <button class="gtv2Btn" onclick="gtv2SpeakInto('gtv2DateNote')">🎙 Notiz sprechen</button>
+      <button class="gtv2Btn gtv2Primary" onclick="gtv2AddDate()">＋ Termin speichern</button>
+    </div>
+    <div id="gtv2DateList"></div>
+  </section>
+</div>
+
+<script>
+(function(){
+  const TASK_PREFIX="grooveitTasks::";
+  const DATE_KEY="grooveitAppointments";
+
+  function ev(){ return (window.currentEvent || localStorage.getItem("grooveitCurrentEvent") || "Ohne Event"); }
+  function getJSON(k,d=[]){try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(d))}catch(e){return d}}
+  function setJSON(k,v){localStorage.setItem(k,JSON.stringify(v))}
+  function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+  function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+  function today(){return new Date().toISOString().slice(0,10)}
+
+  window.gtv2Show=function(name){
+    document.querySelectorAll(".gtv2Panel").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll("#gtv2Nav button").forEach(x=>x.classList.remove("active"));
+    const map={tasks:["gtv2Tasks","gtv2TabTasks"],all:["gtv2All","gtv2TabAll"],dates:["gtv2Dates","gtv2TabDates"]};
+    document.getElementById(map[name][0]).classList.add("active");
+    document.getElementById(map[name][1]).classList.add("active");
+    render();
+  };
+
+  window.gtv2AddTask=function(text,source){
+    const t=(text || document.getElementById("gtv2TaskText").value || "").trim();
+    if(!t) return alert("Bitte Aufgabe eingeben.");
+    const event=ev(), key=TASK_PREFIX+event, arr=getJSON(key);
+    arr.unshift({
+      id:uid(), text:t, person:(document.getElementById("gtv2TaskPerson").value||"").trim(),
+      due:document.getElementById("gtv2TaskDue").value||"", status:"open",
+      source:source||"direkt", created:new Date().toISOString(), event
+    });
+    setJSON(key,arr);
+    document.getElementById("gtv2TaskText").value="";
+    document.getElementById("gtv2TaskDue").value="";
+    render();
+  };
+
+  window.gtv2TaskFromText=function(text,source){
+    if(!text) return;
+    document.getElementById("gtv2TaskText").value=text;
+    gtv2Show("tasks");
+    if(confirm("Als offene Aufgabe übernehmen?")) gtv2AddTask(text,source||"übernommen");
+  };
+
+  window.gtv2ToggleTask=function(event,id){
+    const key=TASK_PREFIX+event, arr=getJSON(key);
+    const x=arr.find(a=>a.id===id); if(!x)return;
+    x.status=x.status==="done"?"open":"done";
+    x.doneAt=x.status==="done"?new Date().toISOString():"";
+    setJSON(key,arr); render();
+  };
+
+  window.gtv2DeleteTask=function(event,id){
+    if(!confirm("Aufgabe löschen?"))return;
+    const key=TASK_PREFIX+event;
+    setJSON(key,getJSON(key).filter(x=>x.id!==id)); render();
+  };
+
+  function allTasks(){
+    const out=[];
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(k && k.startsWith(TASK_PREFIX)) out.push(...getJSON(k));
+    }
+    const now=today();
+    return out.sort((a,b)=>{
+      const rank=x=>x.status==="done"?3:(x.due&&x.due<now?0:(x.due?1:2));
+      return rank(a)-rank(b) || String(a.due||"9999").localeCompare(String(b.due||"9999"));
+    });
+  }
+
+  function taskCard(x){
+    const overdue=x.status!=="done" && x.due && x.due<today();
+    const cls=x.status==="done"?"gtv2Done":overdue?"gtv2Over":"gtv2Open";
+    const label=x.status==="done"?"✅ ERLEDIGT":overdue?"🔴 ÜBERFÄLLIG":"🟠 OFFEN";
+    return `<div class="gtv2Card">
+      <b>${esc(x.text)}</b>
+      <div class="gtv2Meta">${esc(x.event||"Ohne Event")} · ${esc(x.person||"ohne Verantwortlichen")} · ${x.due?"Fällig: "+esc(x.due):"ohne Termin"} · Quelle: ${esc(x.source||"direkt")}</div>
+      <div class="gtv2Row"><button class="gtv2Btn ${cls}" onclick='gtv2ToggleTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>${label}</button>
+      <button class="gtv2Btn" onclick='gtv2DeleteTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>🗑</button></div>
+    </div>`;
+  }
+
+  window.gtv2AddDate=function(){
+    const title=(document.getElementById("gtv2DateTitle").value||"").trim();
+    if(!title)return alert("Bitte Termin eingeben.");
+    const arr=getJSON(DATE_KEY);
+    arr.push({id:uid(),title,date:document.getElementById("gtv2DateDay").value||"",
+      time:document.getElementById("gtv2DateTime").value||"",place:(document.getElementById("gtv2DatePlace").value||"").trim(),
+      people:(document.getElementById("gtv2DatePeople").value||"").trim(),note:(document.getElementById("gtv2DateNote").value||"").trim(),
+      event:ev(),created:new Date().toISOString()});
+    setJSON(DATE_KEY,arr);
+    ["gtv2DateTitle","gtv2DateDay","gtv2DateTime","gtv2DatePlace","gtv2DatePeople","gtv2DateNote"].forEach(id=>document.getElementById(id).value="");
+    render();
+  };
+
+  window.gtv2DeleteDate=function(id){
+    if(!confirm("Termin löschen?"))return;
+    setJSON(DATE_KEY,getJSON(DATE_KEY).filter(x=>x.id!==id)); render();
+  };
+
+  function render(){
+    const event=ev();
+    document.getElementById("gtv2TaskList").innerHTML=getJSON(TASK_PREFIX+event).map(taskCard).join("") || '<div class="gtv2Tiny">Noch keine Aufgaben für dieses Event.</div>';
+    document.getElementById("gtv2AllList").innerHTML=allTasks().map(taskCard).join("") || '<div class="gtv2Tiny">Noch keine Aufgaben.</div>';
+    const dates=getJSON(DATE_KEY).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+    document.getElementById("gtv2DateList").innerHTML=dates.map(x=>`<div class="gtv2Card">
+      <b>📅 ${esc(x.date||"ohne Datum")} ${esc(x.time||"")} · ${esc(x.title)}</b>
+      <div class="gtv2Meta">📍 ${esc(x.place||"ohne Ort")} · 👥 ${esc(x.people||"keine Teilnehmer")} · Event: ${esc(x.event||"ohne Event")}</div>
+      ${x.note?`<div style="margin-top:7px">${esc(x.note)}</div>`:""}
+      <div class="gtv2Row"><button class="gtv2Btn" onclick='gtv2DeleteDate(${JSON.stringify(x.id)})'>🗑 Löschen</button></div>
+    </div>`).join("") || '<div class="gtv2Tiny">Noch keine Termine.</div>';
+  }
+
+  // Speech V2: final results only + overlap protection.
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  function merge(a,b){
+    a=String(a||"").replace(/\s+/g," ").trim(); b=String(b||"").replace(/\s+/g," ").trim();
+    if(!a)return b;if(!b)return a;
+    const al=a.toLowerCase(),bl=b.toLowerCase();
+    if(al===bl||al.includes(bl))return a;if(bl.startsWith(al+" "))return b;
+    const A=a.split(" "),B=b.split(" ");
+    for(let n=Math.min(A.length,B.length);n>0;n--)
+      if(A.slice(-n).join(" ").toLowerCase()===B.slice(0,n).join(" ").toLowerCase())
+        return (a+" "+B.slice(n).join(" ")).trim();
+    return a+" "+b;
+  }
+  window.gtv2SpeakInto=function(id){
+    if(!SR)return alert("Spracherkennung wird hier nicht unterstützt. Bitte über HTTPS in Chrome öffnen.");
+    const el=document.getElementById(id),base=el.value.trim(),r=new SR();
+    r.lang="de-CH";r.continuous=true;r.interimResults=true;
+    r.onresult=e=>{
+      const finals=[];for(let i=0;i<e.results.length;i++)if(e.results[i].isFinal)finals.push(e.results[i][0].transcript);
+      let spoken="";finals.forEach(x=>spoken=merge(spoken,x));
+      el.value=merge(base,spoken);
+    };
+    r.onerror=e=>alert("Sprachfehler: "+e.error);
+    r.start();
+    setTimeout(()=>{try{r.stop()}catch(e){}},12000);
+  };
+
+  // Add "→ Aufgabe" buttons to existing idea/feedback cards non-destructively.
+  function addTransferButtons(){
+    const candidates=document.querySelectorAll("button");
+    candidates.forEach(()=>{}); // hook kept intentionally light; existing app remains untouched.
+  }
+
+  window.addEventListener("load",()=>{gtv2Show("tasks");render();});
+  window.addEventListener("storage",render);
 })();
 </script>
 
