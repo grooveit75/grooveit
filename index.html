@@ -221,7 +221,7 @@ textarea{min-height:130px;resize:vertical}
   <span id="navIdeasAll" onclick="showTopView('ideasAll')" style="cursor:pointer">Alle Ideen</span>
   <span id="navStats" onclick="showTopView('stats')" style="cursor:pointer">Statistik</span>
   <span id="navTasksAll" onclick="showTopView('tasksAll')" style="cursor:pointer">Alle Aufgaben</span>
-  <span id="navEvents" onclick="showTopView('events')" style="cursor:pointer">Events</span>
+  <span id="navEvents" onclick="showTopView('events')" style="cursor:pointer">Alle Events</span>
 </nav>
   <button class="action" onclick="newEvent()">Neue Party ＋</button>
 </header>
@@ -310,7 +310,7 @@ textarea{min-height:130px;resize:vertical}
       <select id="event" onchange="switchEvent()"></select>
       <div class="eventtools"><button class="danger" onclick="deleteCurrentEvent()">🗑 Party löschen</button></div>
       <label>Dein Name</label>
-      <input id="name" placeholder="z. B. Matteo">
+      <input id="name" required placeholder="z. B. Matteo">
       <label>Sprache</label>
       <select id="speechLang">
         <option value="de-DE">Deutsch</option>
@@ -601,6 +601,9 @@ function deleteFeedback(index){
  save(); render(); resetSummary(); renderAIResult(); document.getElementById("aiExport").value=""; renderAIResult();
 }
 function submitFeedback(){
+ const staffName=(document.getElementById("name")?.value||"").trim();
+ if(!staffName){alert("Bitte deinen Namen eingeben.");document.getElementById("name")?.focus();return;}
+
  const name=document.getElementById("name").value.trim()||"Teammitglied";
  let text=(currentMode==="write"?document.getElementById("manual").value:document.getElementById("transcript").value).trim();
  if(!text) return alert("Bitte zuerst Feedback sprechen oder schreiben.");
@@ -1137,7 +1140,7 @@ function buildTabbedLayout(){
       <label>Party</label>
       <select id="partyTabEvent"></select>
       <div class="eventtools">
-        <button onclick="newEvent();syncPartyTab()">＋ Neue Party</button>
+        
         <button class="danger" onclick="deleteCurrentEvent();syncPartyTab()">🗑 Party löschen</button>
       </div>
       <div class="note">Die ausgewählte Party gilt automatisch für alle Laschen.</div>`;
@@ -2257,7 +2260,7 @@ let pcm=new Date(); pcm=new Date(pcm.getFullYear(),pcm.getMonth(),1);
 const p2=n=>String(n).padStart(2,"0"),iso=(y,m,d)=>y+"-"+p2(m+1)+"-"+p2(d);
 
 window.openPartyModal=function(){
-  ["partyNewName","partyNewDate","partyNewPlace","partyNewResponsible"].forEach(id=>{let e=document.getElementById(id);if(e)e.value=""});
+  ["partyNewDate","partyNewPlace"].forEach(id=>{let e=document.getElementById(id);if(e)e.value=""});
   let l=document.getElementById("partyCalendarSelected");if(l)l.textContent="noch kein Datum";
   pcm=new Date();pcm=new Date(pcm.getFullYear(),pcm.getMonth(),1);
   document.getElementById("partyModal").style.display="block";renderPartyCalendar();
@@ -2275,16 +2278,21 @@ window.partyCalPrev=()=>{pcm=new Date(pcm.getFullYear(),pcm.getMonth()-1,1);rend
 window.partyCalNext=()=>{pcm=new Date(pcm.getFullYear(),pcm.getMonth()+1,1);renderPartyCalendar()};
 window.partyCalSelect=s=>{document.getElementById("partyNewDate").value=s;document.getElementById("partyCalendarSelected").textContent=new Date(s+"T12:00:00").toLocaleDateString("de-CH");let p=s.split("-").map(Number);pcm=new Date(p[0],p[1]-1,1);renderPartyCalendar()};
 window.saveNewParty=function(){
- let name=(document.getElementById("partyNewName").value||"").trim(),date=document.getElementById("partyNewDate").value,place=(document.getElementById("partyNewPlace").value||"").trim(),responsible=(document.getElementById("partyNewResponsible").value||"").trim();
- if(!name)return alert("Bitte Partyname eingeben.");if(!date)return alert("Bitte Datum im Kalender auswählen.");if(!place)return alert("Bitte Ort eingeben.");
+ let date=document.getElementById("partyNewDate").value,
+     place=(document.getElementById("partyNewPlace").value||"").trim();
+ if(!date)return alert("Bitte Datum im Kalender auswählen.");
+ if(!place)return alert("Bitte Ort eingeben.");
+ const displayDate=new Date(date+"T12:00:00").toLocaleDateString("de-CH");
+ const name=displayDate+" · "+place;
  if(events[name])return alert("Diese Party existiert bereits.");
- events[name]=[];currentEvent=name;
- let meta=getMeta();meta[name]={date,place,responsible};saveMeta(meta);
- save();render();resetSummary();renderAIResult();renderIdeas();closePartyModal();
+ events[name]=[]; currentEvent=name;
+ let meta=getMeta(); meta[name]={date,place}; saveMeta(meta);
+ save(); render(); resetSummary(); renderAIResult(); renderIdeas(); closePartyModal();
  if(typeof syncPartyTab==="function")syncPartyTab();
 };
 window.partyLabel=function(name){
- let m=getMeta()[name];return m?`${name} – ${new Date(m.date+"T12:00:00").toLocaleDateString("de-CH")} – ${m.place}`:name;
+ let m=getMeta()[name];
+ return m ? `${new Date(m.date+"T12:00:00").toLocaleDateString("de-CH")} · ${m.place}` : name;
 };
 })();
 </script>
@@ -2578,7 +2586,6 @@ window.partyLabel=function(name){
 <div id="partyModal" class="partyModal" style="display:none">
   <div class="partyModalBox">
     <div class="mainhead"><h2>🎉 Neue Party</h2><button class="deletebtn" onclick="closePartyModal()">✕</button></div>
-    <label>Partyname</label><input id="partyNewName" class="field" placeholder="Name der Party">
     <label>Datum</label>
     <div class="partyCalendar">
       <div class="partyCalendarHead"><button type="button" class="btn" onclick="partyCalPrev()">‹</button><strong id="partyCalendarTitle"></strong><button type="button" class="btn" onclick="partyCalNext()">›</button></div>
@@ -2588,7 +2595,6 @@ window.partyLabel=function(name){
       <input id="partyNewDate" type="hidden">
     </div>
     <label>Ort</label><input id="partyNewPlace" class="field" placeholder="Wo findet die Party statt?">
-    <label>Verantwortlich / Name</label><input id="partyNewResponsible" class="field" placeholder="Wer ist verantwortlich?">
     <div class="actions"><button class="btn" onclick="closePartyModal()">Abbrechen</button><button class="btn primary" onclick="saveNewParty()">Party speichern</button></div>
   </div>
 </div>
