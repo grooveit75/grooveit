@@ -2207,11 +2207,21 @@ function toggleIdeaRec(){
 (function(){
 const TP="grooveitTasks::", DK="grooveitAppointments";
 const J=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(d))}catch(e){return d}}, S=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
-const EV=()=>typeof currentEvent!=="undefined"?currentEvent:"Ohne Event", ID=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7), TODAY=()=>new Date().toISOString().slice(0,10);
+const EV=()=>{const s=document.getElementById("event");return (s&&s.value)?s.value:(typeof currentEvent!=="undefined"?currentEvent:"Ohne Event")}, ID=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7), TODAY=()=>new Date().toISOString().slice(0,10);
 const H=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 window.addTask=(text,source,person)=>{let f=document.getElementById("taskText"),t=(text||(f?.value||"")).trim();if(!t)return alert("Bitte Aufgabe eingeben.");let e=EV(),k=TP+e,a=J(k);a.unshift({id:ID(),text:t,person:person||(document.getElementById("taskPerson")?.value||""),due:document.getElementById("taskDue")?.value||"",status:"open",source:source||"Direkt",event:e});S(k,a);if(f)f.value="";renderTaskModule()};
-window.feedbackToTask=i=>{let x=currentData()[i];if(x&&confirm("Dieses Feedback als Aufgabe übernehmen?")){addTask(x.text,"STAFF-Feedback",x.name||"");alert("Als Aufgabe übernommen.")}};
-window.ideaToTask=i=>{let x=getIdeas()[i];if(x&&confirm("Diese Idee als Aufgabe übernehmen?")){addTask(x.text,"Idee",x.name||"");alert("Als Aufgabe übernommen.")}};
+window.feedbackToTask=i=>{let x=currentData()[i];if(x&&confirm("Dieses Feedback als Aufgabe übernehmen?")){
+  addTask(x.text,"STAFF-Feedback",x.name||"");
+  const b=[...document.querySelectorAll(".main-tab")].find(z=>z.dataset.tab==="tasks");
+  if(typeof showMainTab==="function")showMainTab("tasks",b);
+  renderTaskModule();
+}};
+window.ideaToTask=i=>{let x=getIdeas()[i];if(x&&confirm("Diese Idee als Aufgabe übernehmen?")){
+  addTask(x.text,"Idee",x.name||"");
+  const b=[...document.querySelectorAll(".main-tab")].find(z=>z.dataset.tab==="tasks");
+  if(typeof showMainTab==="function")showMainTab("tasks",b);
+  renderTaskModule();
+}};
 window.toggleTask=(e,id)=>{let k=TP+e,a=J(k),x=a.find(z=>z.id===id);if(x){x.status=x.status==="done"?"open":"done";S(k,a);renderTaskModule();renderAllTasksTop()}};
 window.setDue=(e,id,v)=>{let k=TP+e,a=J(k),x=a.find(z=>z.id===id);if(x){x.due=v||"";S(k,a);renderTaskModule();renderAllTasksTop()}};
 window.setTaskPerson=(e,id,v)=>{let k=TP+e,a=J(k),x=a.find(z=>z.id===id);if(x){x.person=(v||"").trim();S(k,a);renderTaskModule();renderAllTasksTop()}};
