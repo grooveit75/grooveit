@@ -210,6 +210,13 @@ textarea{min-height:130px;resize:vertical}
 .partyCalendarWeek span{font-size:11px;color:#8f8f98;text-align:center;padding:4px 0}
 .partyCalendarDay{aspect-ratio:1/1;border:1px solid #303036;background:#111;color:#eee;border-radius:9px;display:grid;place-items:center;min-height:36px}
 .partyCalendarDay.other{opacity:.28}.partyCalendarDay.today{border-color:#aaa}.partyCalendarDay.selected{background:#fff;color:#080808;border-color:#fff;font-weight:900}
+
+.grooveCalendarDay.booked{background:#4b1111;border-color:#b83a3a;color:#fff}
+.grooveCalendarDay.booked.selected{background:#fff;color:#080808;border-color:#fff;box-shadow:inset 0 0 0 3px #b83a3a}
+.calendarBookedInfo{margin-top:10px;border:1px solid #4b2525;background:#160b0b;border-radius:10px;padding:10px;display:none}
+.calendarBookedInfo.show{display:block}
+.calendarBookedItem{padding:7px 0;border-top:1px solid #3b2222;font-size:13px}
+.calendarBookedItem:first-child{border-top:0}
 </style>
 </head>
 <body>
@@ -295,6 +302,7 @@ textarea{min-height:130px;resize:vertical}
   <div class="grooveCalendarWeek"><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span></div>
   <div id="calendarGrid" class="grooveCalendarGrid"></div>
   <div class="taskMeta" style="margin-top:8px">Ausgewählt: <strong id="calendarSelected">noch kein Datum</strong></div>
+<div id="calendarBookedInfo" class="calendarBookedInfo"></div>
   <input id="dateDay" type="hidden">
 </div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="dateTime" type="time" class="field"><div class="field" style="display:flex;align-items:center;color:#999">Uhrzeit</div></div>
@@ -1112,7 +1120,27 @@ renderAIResult();
 renderIdeas();
 
 // --- V7 Laschen-Navigation ---
+function ensureGrooveitTabSeparation(){
+  const ideasCard=document.getElementById("ideasCard");
+  const ideasTab=document.getElementById("tabIdeas");
+  if(ideasCard && ideasTab && ideasCard.parentElement!==ideasTab){
+    ideasTab.appendChild(ideasCard);
+  }
+
+  const feedbackInput=document.getElementById("feedbackInputCard");
+  const feedbackTab=document.getElementById("tabFeedback");
+  if(feedbackInput && feedbackTab && feedbackInput.parentElement!==feedbackTab){
+    feedbackTab.insertBefore(feedbackInput,feedbackTab.firstChild);
+  }
+
+  // Sicherheit: Ideen-Card darf niemals im STAFF-Feedback-Tab liegen.
+  if(ideasCard && ideasCard.closest("#tabFeedback") && ideasTab){
+    ideasTab.appendChild(ideasCard);
+  }
+}
+
 function showMainTab(name,btn){
+  ensureGrooveitTabSeparation();
   document.querySelectorAll(".tab-page").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll(".main-tab").forEach(x=>x.classList.remove("active"));
   const map={party:"tabParty",feedback:"tabFeedback",ai:"tabAI",ideas:"tabIdeas",tasks:"tabTasks",dates:"tabDates",guests:"tabGuests",admin:"tabAdmin"};
@@ -1204,7 +1232,7 @@ render=function(){
   syncPartyTab();
 };
 
-window.addEventListener('DOMContentLoaded',buildTabbedLayout);
+window.addEventListener('DOMContentLoaded',()=>{buildTabbedLayout();ensureGrooveitTabSeparation();});
 
 
 // --- Version 1.1: Gästezähler ---
@@ -1964,7 +1992,10 @@ function showTopView(view){
   setTopNavActive(view);
   if(view==="all")renderTopAllFeedbacks();
   if(view==="ideasAll")renderTopAllIdeas();
-  if(view==="tasksAll"&&typeof renderAllTasksTop==="function"){renderTaskModule();renderAllTasksTop();}
+  if(view==="tasksAll"&&typeof renderAllTasksTop==="function"){
+    if(typeof renderTaskModule==="function")renderTaskModule();
+    renderAllTasksTop();
+  }
   if(view==="events")renderEventManagerV13();
 }
 
@@ -2286,7 +2317,7 @@ function card(x){
 
 window.renderAllTasksTop=function(){
   const host=document.getElementById("tasksAllTopList");
-  if(!host) return;
+  if(!host)return;
   const items=all();
   host.innerHTML=items.length
     ? items.map(card).join("")
@@ -2295,19 +2326,36 @@ window.renderAllTasksTop=function(){
 
 window.calendarPrevMonth=function(){calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()-1,1);renderGrooveCalendar()};
 window.calendarNextMonth=function(){calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+1,1);renderGrooveCalendar()};
+window.showCalendarBookedInfo=function(iso){
+  const box=document.getElementById("calendarBookedInfo");
+  if(!box)return;
+  let appointments=[];
+  try{appointments=JSON.parse(localStorage.getItem("grooveitAppointments")||"[]")}catch(e){appointments=[]}
+  const rows=appointments.filter(x=>x&&x.date===iso).sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
+  if(!rows.length){
+    box.className="calendarBookedInfo";
+    box.innerHTML="";
+    return;
+  }
+  box.className="calendarBookedInfo show";
+  box.innerHTML='<b>🔴 Bereits geplant – der Tag bleibt trotzdem buchbar:</b>'+
+    rows.map(x=>`<div class="calendarBookedItem"><b>${H(x.time||"ohne Zeit")} · ${H(x.title||"Termin")}</b><br>📍 ${H(x.place||"ohne Ort")}${x.people?" · 👥 "+H(x.people):""}${x.note?"<br>"+H(x.note):""}</div>`).join("");
+};
+
 window.calendarSelect=function(iso){
   const inp=document.getElementById("dateDay");if(inp)inp.value=iso;
   const lab=document.getElementById("calendarSelected");if(lab)lab.textContent=new Date(iso+"T12:00:00").toLocaleDateString("de-CH");
-  const parts=iso.split("-").map(Number);calendarMonth=new Date(parts[0],parts[1]-1,1);
+  const parts=iso.split("-").map(Number);calMonth=new Date(parts[0],parts[1]-1,1);
   renderGrooveCalendar();
+  showCalendarBookedInfo(iso);
 };
 
 window.addAppointment=()=>{let title=(document.getElementById("dateTitle")?.value||"").trim();if(!title)return alert("Bitte Termin eingeben.");let a=J(DK);a.push({id:ID(),title,date:document.getElementById("dateDay")?.value||"",time:document.getElementById("dateTime")?.value||"",place:document.getElementById("datePlace")?.value||"",people:document.getElementById("datePeople")?.value||"",note:document.getElementById("dateNote")?.value||"",event:EV()});S(DK,a);
   ["dateTitle","dateTime","datePlace","datePeople","dateNote"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=""});
   const dd=document.getElementById("dateDay");if(dd)dd.value="";
   const cs=document.getElementById("calendarSelected");if(cs)cs.textContent="noch kein Datum";
-  renderGrooveCalendar();renderTaskModule()};
-window.delAppointment=id=>{if(confirm("Termin löschen?")){S(DK,J(DK).filter(x=>x.id!==id));renderTaskModule()}};
+  renderGrooveCalendar();renderTaskModule();if(document.getElementById("dateDay")?.value)showCalendarBookedInfo(document.getElementById("dateDay").value)};
+window.delAppointment=id=>{if(confirm("Termin löschen?")){S(DK,J(DK).filter(x=>x.id!==id));renderTaskModule();renderGrooveCalendar()}};
 window.renderTaskModule=()=>{let t=document.getElementById("taskList");if(t)t.innerHTML=J(TP+EV()).map(card).join("")||'<div class="empty">Noch keine Aufgaben.</div>';let d=document.getElementById("dateList");if(d)d.innerHTML=J(DK).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(x=>`<div class="feedback"><div class="meta"><span class="name">📅 ${H(x.date||"ohne Datum")} ${H(x.time||"")} · ${H(x.title)}</span></div><div class="text">📍 ${H(x.place||"ohne Ort")} · 👥 ${H(x.people||"keine Teilnehmer")} · ${H(x.event)}</div>${x.note?`<div class="text">${H(x.note)}</div>`:""}<button class="deletebtn" onclick='delAppointment(${JSON.stringify(x.id)})'>🗑</button></div>`).join("")||'<div class="empty">Noch keine Termine.</div>';if(typeof renderAllTasksTop==="function")renderAllTasksTop()};
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;function M(a,b){a=String(a||"").trim();b=String(b||"").trim();if(!a)return b;if(!b)return a;if(a.toLowerCase().includes(b.toLowerCase()))return a;let A=a.split(" "),B=b.split(" ");for(let n=Math.min(A.length,B.length);n;n--)if(A.slice(-n).join(" ").toLowerCase()===B.slice(0,n).join(" ").toLowerCase())return(a+" "+B.slice(n).join(" ")).trim();return a+" "+b}
 window.taskSpeak=id=>{if(!SR)return alert("Spracherkennung nicht unterstützt.");let e=document.getElementById(id),base=e.value,r=new SR();r.lang="de-CH";r.continuous=true;r.interimResults=true;r.onresult=x=>{let f=[];for(let i=0;i<x.results.length;i++)if(x.results[i].isFinal)f.push(x.results[i][0].transcript);let s="";f.forEach(v=>s=M(s,v));e.value=M(base,s)};r.start();setTimeout(()=>{try{r.stop()}catch(_){}},12000)};
@@ -2374,13 +2422,21 @@ window.renderGrooveCalendar=function(){
  const y=calMonth.getFullYear(),m=calMonth.getMonth(),f=new Date(y,m,1),off=(f.getDay()+6)%7,start=new Date(y,m,1-off);
  t.textContent=new Intl.DateTimeFormat("de-CH",{month:"long",year:"numeric"}).format(calMonth);
  const sel=document.getElementById("dateDay")?.value||"",n=new Date(),today=iso(n.getFullYear(),n.getMonth(),n.getDate());
+ let appointments=[];
+ try{appointments=JSON.parse(localStorage.getItem("grooveitAppointments")||"[]")}catch(e){appointments=[]}
+ const bookedDates=new Set(appointments.filter(x=>x&&x.date).map(x=>x.date));
+
  let out="";
  for(let i=0;i<42;i++){
    const d=new Date(start);d.setDate(start.getDate()+i);const s=iso(d.getFullYear(),d.getMonth(),d.getDate()),c=["grooveCalendarDay"];
-   if(d.getMonth()!==m)c.push("other");if(s===today)c.push("today");if(s===sel)c.push("selected");
-   out+=`<button type="button" class="${c.join(" ")}" onclick="calendarSelect('${s}')">${d.getDate()}</button>`;
+   if(d.getMonth()!==m)c.push("other");
+   if(s===today)c.push("today");
+   if(bookedDates.has(s))c.push("booked");
+   if(s===sel)c.push("selected");
+   out+=`<button type="button" class="${c.join(" ")}" onclick="calendarSelect('${s}')" title="${bookedDates.has(s)?"Bereits Termin vorhanden – weitere Buchung möglich":""}">${d.getDate()}</button>`;
  }
  g.innerHTML=out;
+ if(sel)showCalendarBookedInfo(sel);
 };
 window.calendarPrevMonth=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()-1,1);renderGrooveCalendar()};
 window.calendarNextMonth=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1);renderGrooveCalendar()};
@@ -2514,6 +2570,31 @@ window.addEventListener("load",renderGrooveCalendar);
     el.textContent=msg;
   }
 
+  function refreshGrooveitUIFromStorage(){
+    try{
+      const storedEvents=JSON.parse(localStorage.getItem("grooveitEvents")||"null");
+      if(storedEvents && typeof storedEvents==="object" && !Array.isArray(storedEvents)){
+        events=storedEvents;
+      }
+      const storedCurrent=localStorage.getItem("grooveitCurrentEvent");
+      if(storedCurrent && events[storedCurrent]) currentEvent=storedCurrent;
+      else if(!events[currentEvent]) currentEvent=Object.keys(events)[0]||currentEvent;
+
+      // Nur Inhalte neu zeichnen – keine Navigation und kein Reload.
+      if(typeof ensureGrooveitTabSeparation==="function") ensureGrooveitTabSeparation();
+      if(typeof render==="function") render();
+      if(typeof renderIdeas==="function") renderIdeas();
+      if(typeof renderTaskModule==="function") renderTaskModule();
+      if(typeof renderAllTasksTop==="function") renderAllTasksTop();
+      if(typeof renderTopAllFeedbacks==="function") renderTopAllFeedbacks();
+      if(typeof renderTopAllIdeas==="function") renderTopAllIdeas();
+      if(typeof renderEventManagerV13==="function") renderEventManagerV13();
+      if(typeof renderGrooveCalendar==="function") renderGrooveCalendar();
+    }catch(e){
+      console.error("UI Refresh",e);
+    }
+  }
+
   function applyRemote(remote){
     cloudApplying=true;
     try{
@@ -2526,8 +2607,7 @@ window.addEventListener("load",renderGrooveCalendar);
       });
     } finally {
       cloudApplying=false;
-      if(typeof renderTaskModule==="function") renderTaskModule();
-      if(typeof renderAllTasksTop==="function") renderAllTasksTop();
+      refreshGrooveitUIFromStorage();
     }
   }
 
@@ -2700,8 +2780,7 @@ window.addEventListener("load",renderGrooveCalendar);
         if(rs!==ls){
           applyRemote(remote);
           sessionStorage.setItem("grooveitInitialCloudSync","1");
-          location.reload();
-          return;
+          refreshGrooveitUIFromStorage();
         }
       }
 
@@ -2717,8 +2796,9 @@ window.addEventListener("load",renderGrooveCalendar);
             lastRemote=rs;
             if(rs!==stable(localState())){
               applyRemote(remote);
+              refreshGrooveitUIFromStorage();
               status("☁️ Aktualisiert");
-              setTimeout(()=>location.reload(),350);
+              setTimeout(()=>status("☁️ Gemeinsam verbunden"),900);
             }
           }
         }catch(e){
