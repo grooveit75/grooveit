@@ -299,7 +299,12 @@ textarea{min-height:130px;resize:vertical}
 </div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="dateTime" type="time" class="field"><div class="field" style="display:flex;align-items:center;color:#999">Uhrzeit</div></div>
 <input id="datePlace" class="field" placeholder="Ort"><input id="datePeople" class="field" placeholder="Teilnehmer"><textarea id="dateNote" class="field" placeholder="Notiz"></textarea>
-<div class="actions"><button class="btn" onclick="taskSpeak('dateTitle')">🎙 Titel</button><button class="btn" onclick="taskSpeak('dateNote')">🎙 Notiz</button><button class="btn primary" onclick="addAppointment()">＋ Termin speichern</button></div><div id="dateList"></div></div></div>
+<div class="actions">
+<button class="btn" onclick="speakWholeAppointment()">🎙 Termin komplett sprechen</button>
+<button class="btn" onclick="taskSpeak('dateTitle')">🎙 Titel</button>
+<button class="btn" onclick="taskSpeak('dateNote')">🎙 Notiz</button>
+<button class="btn primary" onclick="addAppointment()">＋ Termin speichern</button>
+</div><div id="dateList"></div></div></div>
 <div id="tabGuests" class="tab-page"></div>
 <div id="tabAdmin" class="tab-page"></div>
 
@@ -2294,6 +2299,93 @@ window.partyLabel=function(name){
  let m=getMeta()[name];
  return m ? `${new Date(m.date+"T12:00:00").toLocaleDateString("de-CH")} · ${m.place}` : name;
 };
+})();
+</script>
+
+
+<script>
+(function(){
+let calMonth=new Date();calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth(),1);
+const p2=n=>String(n).padStart(2,"0");
+const iso=(y,m,d)=>y+"-"+p2(m+1)+"-"+p2(d);
+
+window.renderGrooveCalendar=function(){
+ const g=document.getElementById("calendarGrid"),t=document.getElementById("calendarTitle");if(!g||!t)return;
+ const y=calMonth.getFullYear(),m=calMonth.getMonth(),f=new Date(y,m,1),off=(f.getDay()+6)%7,start=new Date(y,m,1-off);
+ t.textContent=new Intl.DateTimeFormat("de-CH",{month:"long",year:"numeric"}).format(calMonth);
+ const sel=document.getElementById("dateDay")?.value||"",n=new Date(),today=iso(n.getFullYear(),n.getMonth(),n.getDate());
+ let out="";
+ for(let i=0;i<42;i++){
+   const d=new Date(start);d.setDate(start.getDate()+i);const s=iso(d.getFullYear(),d.getMonth(),d.getDate()),c=["grooveCalendarDay"];
+   if(d.getMonth()!==m)c.push("other");if(s===today)c.push("today");if(s===sel)c.push("selected");
+   out+=`<button type="button" class="${c.join(" ")}" onclick="calendarSelect('${s}')">${d.getDate()}</button>`;
+ }
+ g.innerHTML=out;
+};
+window.calendarPrevMonth=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()-1,1);renderGrooveCalendar()};
+window.calendarNextMonth=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1);renderGrooveCalendar()};
+window.calendarSelect=s=>{
+ const d=document.getElementById("dateDay");if(d)d.value=s;
+ const l=document.getElementById("calendarSelected");if(l)l.textContent=new Date(s+"T12:00:00").toLocaleDateString("de-CH");
+ const p=s.split("-").map(Number);calMonth=new Date(p[0],p[1]-1,1);renderGrooveCalendar();
+};
+
+function normalizeSpeech(s){return String(s||"").replace(/\s+/g," ").trim()}
+function parseGermanDate(text){
+ const months={januar:1,februar:2,märz:3,maerz:3,april:4,mai:5,juni:6,juli:7,august:8,september:9,oktober:10,november:11,dezember:12};
+ let m=text.match(/\b(\d{1,2})[.\s]+(januar|februar|märz|maerz|april|mai|juni|juli|august|september|oktober|november|dezember)(?:\s+(\d{4}))?\b/i);
+ if(m){const y=+(m[3]||new Date().getFullYear()),mo=months[m[2].toLowerCase()],d=+m[1];return iso(y,mo-1,d)}
+ m=text.match(/\b(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{2,4}))?\b/);
+ if(m){let y=m[3]?+m[3]:new Date().getFullYear();if(y<100)y+=2000;return iso(y,+m[2]-1,+m[1])}
+ return "";
+}
+function parseTime(text){
+ let m=text.match(/\b(?:um\s*)?([01]?\d|2[0-3])[:.](\d{2})\b/);if(m)return p2(+m[1])+":"+p2(+m[2]);
+ m=text.match(/\b(?:um\s*)?([01]?\d|2[0-3])\s*uhr\b/i);if(m)return p2(+m[1])+":00";
+ return "";
+}
+function splitParticipants(text){
+ const m=text.match(/\bmit\s+(.+?)(?:\s+(?:wegen|zum|für|betreff|thema)\b|$)/i);
+ if(!m)return "";
+ return m[1].replace(/\bund\b/gi,",").replace(/\s*,\s*/g,", ").trim();
+}
+
+window.speakWholeAppointment=function(){
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SR)return alert("Spracherkennung nicht unterstützt. Bitte Chrome über HTTPS verwenden.");
+ const r=new SR();r.lang="de-CH";r.continuous=false;r.interimResults=false;r.maxAlternatives=1;
+ r.onresult=e=>{
+   const text=normalizeSpeech(e.results[0][0].transcript||"");
+   const date=parseGermanDate(text),time=parseTime(text),people=splitParticipants(text);
+
+   // Ort: bevorzugt zwischen "in/bei" und "mit/wegen/thema"
+   let place="";
+   let pm=text.match(/\b(?:in|bei)\s+(.+?)(?:\s+(?:mit|wegen|zum|für|betreff|thema)\b|$)/i);
+   if(pm)place=pm[1].trim();
+
+   let note=text;
+   let nm=text.match(/\b(?:wegen|zum|für|betreff|thema)\s+(.+)$/i);
+   if(nm)note=nm[1].trim();
+
+   // Titel: Anfang bis zu Datum/Zeit/Ort
+   let title=text.replace(/\btermin\b[:\s-]*/i,"").trim();
+   const cut=title.search(/\b(am|um|in|bei|mit|wegen|zum|für|betreff|thema)\b/i);
+   if(cut>0)title=title.slice(0,cut).trim();
+   if(!title)title="Termin";
+
+   document.getElementById("dateTitle").value=title;
+   if(date){document.getElementById("dateDay").value=date;document.getElementById("calendarSelected").textContent=new Date(date+"T12:00:00").toLocaleDateString("de-CH");const p=date.split("-").map(Number);calMonth=new Date(p[0],p[1]-1,1);renderGrooveCalendar();}
+   if(time)document.getElementById("dateTime").value=time;
+   if(place)document.getElementById("datePlace").value=place;
+   if(people)document.getElementById("datePeople").value=people;
+   document.getElementById("dateNote").value=note;
+
+   alert("Termin erkannt. Bitte Felder kontrollieren und danach speichern.");
+ };
+ r.onerror=e=>alert("Sprachfehler: "+e.error);
+ r.start();
+};
+window.addEventListener("load",renderGrooveCalendar);
 })();
 </script>
 
