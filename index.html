@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Grooveit – Party Feedback</title>
+<title>Grooveit – STAFF-Feedback</title>
 <style>
 :root{
   --bg:#050505;--panel:#0b0b0c;--panel2:#101012;--line:#252529;--text:#f4f4f5;--muted:#9a9aa3;
@@ -296,7 +296,7 @@ textarea{min-height:130px;resize:vertical}
 
   <div class="grid">
     <section class="card pad" id="feedbackInputCard">
-      <h2>💬 Party-Feedback</h2><div class="sub">Teile deine Wahrnehmung der Party</div>
+      <h2>💬 STAFF-Feedback</h2><div class="sub">Teile deine Wahrnehmung der Party</div>
       <label>Event</label>
       <select id="event" onchange="switchEvent()"></select>
       <div class="eventtools"><button onclick="newEvent()">＋ Party erstellen</button><button class="danger" onclick="deleteCurrentEvent()">🗑 Party löschen</button></div>
@@ -535,7 +535,7 @@ textarea{min-height:130px;resize:vertical}
 </div>
 
 <div class="toast" id="toast">Kopiert ✓</div>
-<div class="footer"><span>Grooveit – Party Feedback Tool</span><span>Gemeinsam besser werden. Party für Party.</span><span>V14 – Ideen mit Sprachsteuerung</span></div>
+<div class="footer"><span>Grooveit – STAFF-Feedback Tool</span><span>Gemeinsam besser werden. Party für Party.</span><span>V14 – Ideen mit Sprachsteuerung</span></div>
 </main>
 
 <script>
@@ -1151,7 +1151,7 @@ function buildTabbedLayout(){
 
   // V14 Fix: Der ursprüngliche Feedback-Bereich lag ausserhalb der Laschen
   // und war deshalb auch in "Ideen" sichtbar. Den verbleibenden Grid-Bereich
-  // vollständig in die Party-Feedback-Lasche verschieben.
+  // vollständig in die STAFF-Feedback-Lasche verschieben.
   const feedbackGrid=document.querySelector("#overviewTop > .grid");
   if(feedbackGrid && feedback) feedback.appendChild(feedbackGrid);
 
@@ -1750,7 +1750,7 @@ renderIdeas=function(){_v10RenderIdeas();renderIndependentIdeasAI();}
 window.addEventListener("DOMContentLoaded",()=>{renderIndependentIdeasAI();syncFeedbackAITools();});
 
 
-// --- V11 Party-Feedback sauber pro Event ---
+// --- V11 STAFF-Feedback sauber pro Event ---
 function clearFeedbackAIInputs(){
   const ids=["aiPrompt","aiResultInput","aiResultText","aiPaste","aiSummaryInput"];
   ids.forEach(id=>{const el=document.getElementById(id); if(el) el.value="";});
@@ -2204,37 +2204,24 @@ window.feedbackToTask=i=>{let x=currentData()[i];if(x&&confirm("Dieses Feedback 
 window.ideaToTask=i=>{let x=getIdeas()[i];if(x&&confirm("Diese Idee als Aufgabe übernehmen?")){addTask(x.text,"Idee",x.name||"");alert("Als Aufgabe übernommen.")}};
 window.toggleTask=(e,id)=>{let k=TP+e,a=J(k),x=a.find(z=>z.id===id);if(x){x.status=x.status==="done"?"open":"done";S(k,a);renderTaskModule();renderAllTasksTop()}};
 window.setDue=(e,id,v)=>{let k=TP+e,a=J(k),x=a.find(z=>z.id===id);if(x){x.due=v||"";S(k,a);renderTaskModule();renderAllTasksTop()}};
+window.setTaskPerson=(e,id,v)=>{let k=TP+e,a=J(k),x=a.find(z=>z.id===id);if(x){x.person=(v||"").trim();S(k,a);renderTaskModule();renderAllTasksTop()}};
 window.delTask=(e,id)=>{if(confirm("Aufgabe löschen?")){let k=TP+e;S(k,J(k).filter(x=>x.id!==id));renderTaskModule();renderAllTasksTop()}};
 function all(){let o=[];for(let i=0;i<localStorage.length;i++){let k=localStorage.key(i);if(k&&k.startsWith(TP))o=o.concat(J(k))}let r=x=>x.status==="done"?3:(x.due&&x.due<TODAY()?0:(x.due?1:2));return o.sort((a,b)=>r(a)-r(b)||String(a.due||"9999").localeCompare(String(b.due||"9999")))}
-function card(x){let ov=x.status!=="done"&&x.due&&x.due<TODAY(),lab=x.status==="done"?"✅ ERLEDIGT":ov?"🔴 ÜBERFÄLLIG":"🟠 OFFEN";return `<div class="feedback"><div class="meta"><span class="name">${H(x.text)}</span></div><div class="text">${H(x.event)} · ${H(x.person||"ohne Verantwortlichen")} · ${H(x.source)}</div><input type="date" class="field" value="${H(x.due||"")}" onchange='setDue(${JSON.stringify(x.event)},${JSON.stringify(x.id)},this.value)'><div class="actions"><button class="btn" onclick='toggleTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>${lab}</button><button class="deletebtn" onclick='delTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>🗑</button></div></div>`}
-window.renderAllTasksTop=()=>{let x=document.getElementById("tasksAllTopList");if(x)x.innerHTML=all().map(card).join("")||'<div class="empty">Noch keine Aufgaben.</div>'};
-
-let calendarMonth=new Date();
-calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth(),1);
-
-function pad2(n){return String(n).padStart(2,"0")}
-function localISO(y,m,d){return y+"-"+pad2(m+1)+"-"+pad2(d)}
-window.renderGrooveCalendar=function(){
-  const grid=document.getElementById("calendarGrid"), title=document.getElementById("calendarTitle");
-  if(!grid||!title)return;
-  const y=calendarMonth.getFullYear(),m=calendarMonth.getMonth();
-  title.textContent=new Intl.DateTimeFormat("de-CH",{month:"long",year:"numeric"}).format(calendarMonth);
-  const first=new Date(y,m,1);
-  const offset=(first.getDay()+6)%7;
-  const start=new Date(y,m,1-offset);
-  const selected=document.getElementById("dateDay")?.value||"";
-  const todayISO=localISO(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());
-  let out="";
-  for(let i=0;i<42;i++){
-    const d=new Date(start);d.setDate(start.getDate()+i);
-    const iso=localISO(d.getFullYear(),d.getMonth(),d.getDate());
-    const cls=["grooveCalendarDay"];
-    if(d.getMonth()!==m)cls.push("other");
-    if(iso===todayISO)cls.push("today");
-    if(iso===selected)cls.push("selected");
-    out+=`<button type="button" class="${cls.join(" ")}" onclick="calendarSelect('${iso}')">${d.getDate()}</button>`;
-  }
-  grid.innerHTML=out;
+function card(x){
+  const ov=x.status!=="done"&&x.due&&x.due<TODAY();
+  const lab=x.status==="done"?"✅ ERLEDIGT":ov?"🔴 ÜBERFÄLLIG":"🟠 OFFEN";
+  return `<div class="feedback">
+    <div class="meta"><span class="name">${H(x.text)}</span></div>
+    <div class="text">Event: ${H(x.event)} · Quelle: ${H(x.source||"Direkt")}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input class="field" value="${H(x.person||"")}" placeholder="Wer übernimmt?" onchange='setTaskPerson(${JSON.stringify(x.event)},${JSON.stringify(x.id)},this.value)'>
+      <input type="date" class="field" value="${H(x.due||"")}" onchange='setDue(${JSON.stringify(x.event)},${JSON.stringify(x.id)},this.value)'>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick='toggleTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>${lab}</button>
+      <button class="deletebtn" onclick='delTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>🗑</button>
+    </div>
+  </div>`;
 };
 window.calendarPrevMonth=function(){calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()-1,1);renderGrooveCalendar()};
 window.calendarNextMonth=function(){calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+1,1);renderGrooveCalendar()};
