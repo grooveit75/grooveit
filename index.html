@@ -194,6 +194,13 @@ textarea{min-height:130px;resize:vertical}
 .guest-table td:last-child{border-right:1px solid #27272c;border-radius:0 9px 9px 0}
 @media(max-width:800px){.guest-layout,.guest-kpis{grid-template-columns:1fr}.guest-table{display:block;overflow-x:auto}}
 
+
+.grooveCalendar{border:1px solid #303036;border-radius:14px;background:#09090a;padding:12px;margin:10px 0}
+.grooveCalendarHead{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:8px;text-align:center;margin-bottom:10px}
+.grooveCalendarWeek,.grooveCalendarGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.grooveCalendarWeek span{font-size:11px;color:#8f8f98;text-align:center;padding:4px 0}
+.grooveCalendarDay{aspect-ratio:1/1;border:1px solid #303036;background:#111;color:#eee;border-radius:9px;display:grid;place-items:center;cursor:pointer;min-height:36px}
+.grooveCalendarDay.other{opacity:.28}.grooveCalendarDay.today{border-color:#aaa}.grooveCalendarDay.selected{background:#fff;color:#080808;border-color:#fff;font-weight:900}
 </style>
 </head>
 <body>
@@ -203,8 +210,8 @@ textarea{min-height:130px;resize:vertical}
   <b id="navOverview" onclick="showTopView('overview')" style="cursor:pointer">Übersicht</b>
   <span id="navAll" onclick="showTopView('all')" style="cursor:pointer">Alle Feedbacks</span>
   <span id="navIdeasAll" onclick="showTopView('ideasAll')" style="cursor:pointer">Alle Ideen</span>
-  <span id="navTasksAll" onclick="showTopView('tasksAll')" style="cursor:pointer">Alle Aufgaben</span>
   <span id="navStats" onclick="showTopView('stats')" style="cursor:pointer">Statistik</span>
+  <span id="navTasksAll" onclick="showTopView('tasksAll')" style="cursor:pointer">Alle Aufgaben</span>
   <span id="navEvents" onclick="showTopView('events')" style="cursor:pointer">Events</span>
 </nav>
   <button class="action" onclick="newEvent()">Neue Party ＋</button>
@@ -269,7 +276,19 @@ textarea{min-height:130px;resize:vertical}
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="taskPerson" class="field" placeholder="Verantwortlich (optional)"><input id="taskDue" type="date" class="field"></div>
 <div class="actions"><button class="btn" onclick="taskSpeak('taskText')">🎙 Sprechen</button><button class="btn primary" onclick="addTask()">＋ Speichern</button></div><div id="taskList"></div></div></div>
 <div id="tabDates" class="tab-page"><div class="card pad"><h2>📅 Termine</h2>
-<input id="dateTitle" class="field" placeholder="Termin / Titel"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="dateDay" type="date" class="field"><input id="dateTime" type="time" class="field"></div>
+<input id="dateTitle" class="field" placeholder="Termin / Titel">
+<div class="grooveCalendar">
+  <div class="grooveCalendarHead">
+    <button class="taskBtn" type="button" onclick="calendarPrevMonth()">‹</button>
+    <strong id="calendarTitle">Kalender</strong>
+    <button class="taskBtn" type="button" onclick="calendarNextMonth()">›</button>
+  </div>
+  <div class="grooveCalendarWeek"><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span></div>
+  <div id="calendarGrid" class="grooveCalendarGrid"></div>
+  <div class="taskMeta" style="margin-top:8px">Ausgewählt: <strong id="calendarSelected">noch kein Datum</strong></div>
+  <input id="dateDay" type="hidden">
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="dateTime" type="time" class="field"><div class="field" style="display:flex;align-items:center;color:#999">Uhrzeit</div></div>
 <input id="datePlace" class="field" placeholder="Ort"><input id="datePeople" class="field" placeholder="Teilnehmer"><textarea id="dateNote" class="field" placeholder="Notiz"></textarea>
 <div class="actions"><button class="btn" onclick="taskSpeak('dateTitle')">🎙 Titel</button><button class="btn" onclick="taskSpeak('dateNote')">🎙 Notiz</button><button class="btn primary" onclick="addAppointment()">＋ Termin speichern</button></div><div id="dateList"></div></div></div>
 <div id="tabGuests" class="tab-page"></div>
@@ -2189,12 +2208,53 @@ window.delTask=(e,id)=>{if(confirm("Aufgabe löschen?")){let k=TP+e;S(k,J(k).fil
 function all(){let o=[];for(let i=0;i<localStorage.length;i++){let k=localStorage.key(i);if(k&&k.startsWith(TP))o=o.concat(J(k))}let r=x=>x.status==="done"?3:(x.due&&x.due<TODAY()?0:(x.due?1:2));return o.sort((a,b)=>r(a)-r(b)||String(a.due||"9999").localeCompare(String(b.due||"9999")))}
 function card(x){let ov=x.status!=="done"&&x.due&&x.due<TODAY(),lab=x.status==="done"?"✅ ERLEDIGT":ov?"🔴 ÜBERFÄLLIG":"🟠 OFFEN";return `<div class="feedback"><div class="meta"><span class="name">${H(x.text)}</span></div><div class="text">${H(x.event)} · ${H(x.person||"ohne Verantwortlichen")} · ${H(x.source)}</div><input type="date" class="field" value="${H(x.due||"")}" onchange='setDue(${JSON.stringify(x.event)},${JSON.stringify(x.id)},this.value)'><div class="actions"><button class="btn" onclick='toggleTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>${lab}</button><button class="deletebtn" onclick='delTask(${JSON.stringify(x.event)},${JSON.stringify(x.id)})'>🗑</button></div></div>`}
 window.renderAllTasksTop=()=>{let x=document.getElementById("tasksAllTopList");if(x)x.innerHTML=all().map(card).join("")||'<div class="empty">Noch keine Aufgaben.</div>'};
-window.addAppointment=()=>{let title=(document.getElementById("dateTitle")?.value||"").trim();if(!title)return alert("Bitte Termin eingeben.");let a=J(DK);a.push({id:ID(),title,date:document.getElementById("dateDay")?.value||"",time:document.getElementById("dateTime")?.value||"",place:document.getElementById("datePlace")?.value||"",people:document.getElementById("datePeople")?.value||"",note:document.getElementById("dateNote")?.value||"",event:EV()});S(DK,a);renderTaskModule()};
+
+let calendarMonth=new Date();
+calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth(),1);
+
+function pad2(n){return String(n).padStart(2,"0")}
+function localISO(y,m,d){return y+"-"+pad2(m+1)+"-"+pad2(d)}
+window.renderGrooveCalendar=function(){
+  const grid=document.getElementById("calendarGrid"), title=document.getElementById("calendarTitle");
+  if(!grid||!title)return;
+  const y=calendarMonth.getFullYear(),m=calendarMonth.getMonth();
+  title.textContent=new Intl.DateTimeFormat("de-CH",{month:"long",year:"numeric"}).format(calendarMonth);
+  const first=new Date(y,m,1);
+  const offset=(first.getDay()+6)%7;
+  const start=new Date(y,m,1-offset);
+  const selected=document.getElementById("dateDay")?.value||"";
+  const todayISO=localISO(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());
+  let out="";
+  for(let i=0;i<42;i++){
+    const d=new Date(start);d.setDate(start.getDate()+i);
+    const iso=localISO(d.getFullYear(),d.getMonth(),d.getDate());
+    const cls=["grooveCalendarDay"];
+    if(d.getMonth()!==m)cls.push("other");
+    if(iso===todayISO)cls.push("today");
+    if(iso===selected)cls.push("selected");
+    out+=`<button type="button" class="${cls.join(" ")}" onclick="calendarSelect('${iso}')">${d.getDate()}</button>`;
+  }
+  grid.innerHTML=out;
+};
+window.calendarPrevMonth=function(){calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()-1,1);renderGrooveCalendar()};
+window.calendarNextMonth=function(){calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+1,1);renderGrooveCalendar()};
+window.calendarSelect=function(iso){
+  const inp=document.getElementById("dateDay");if(inp)inp.value=iso;
+  const lab=document.getElementById("calendarSelected");if(lab)lab.textContent=new Date(iso+"T12:00:00").toLocaleDateString("de-CH");
+  const parts=iso.split("-").map(Number);calendarMonth=new Date(parts[0],parts[1]-1,1);
+  renderGrooveCalendar();
+};
+
+window.addAppointment=()=>{let title=(document.getElementById("dateTitle")?.value||"").trim();if(!title)return alert("Bitte Termin eingeben.");let a=J(DK);a.push({id:ID(),title,date:document.getElementById("dateDay")?.value||"",time:document.getElementById("dateTime")?.value||"",place:document.getElementById("datePlace")?.value||"",people:document.getElementById("datePeople")?.value||"",note:document.getElementById("dateNote")?.value||"",event:EV()});S(DK,a);
+  ["dateTitle","dateTime","datePlace","datePeople","dateNote"].forEach(id=>{const el=document.getElementById(id);if(el)el.value=""});
+  const dd=document.getElementById("dateDay");if(dd)dd.value="";
+  const cs=document.getElementById("calendarSelected");if(cs)cs.textContent="noch kein Datum";
+  renderGrooveCalendar();renderTaskModule()};
 window.delAppointment=id=>{if(confirm("Termin löschen?")){S(DK,J(DK).filter(x=>x.id!==id));renderTaskModule()}};
 window.renderTaskModule=()=>{let t=document.getElementById("taskList");if(t)t.innerHTML=J(TP+EV()).map(card).join("")||'<div class="empty">Noch keine Aufgaben.</div>';let d=document.getElementById("dateList");if(d)d.innerHTML=J(DK).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(x=>`<div class="feedback"><div class="meta"><span class="name">📅 ${H(x.date||"ohne Datum")} ${H(x.time||"")} · ${H(x.title)}</span></div><div class="text">📍 ${H(x.place||"ohne Ort")} · 👥 ${H(x.people||"keine Teilnehmer")} · ${H(x.event)}</div>${x.note?`<div class="text">${H(x.note)}</div>`:""}<button class="deletebtn" onclick='delAppointment(${JSON.stringify(x.id)})'>🗑</button></div>`).join("")||'<div class="empty">Noch keine Termine.</div>';renderAllTasksTop()};
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;function M(a,b){a=String(a||"").trim();b=String(b||"").trim();if(!a)return b;if(!b)return a;if(a.toLowerCase().includes(b.toLowerCase()))return a;let A=a.split(" "),B=b.split(" ");for(let n=Math.min(A.length,B.length);n;n--)if(A.slice(-n).join(" ").toLowerCase()===B.slice(0,n).join(" ").toLowerCase())return(a+" "+B.slice(n).join(" ")).trim();return a+" "+b}
 window.taskSpeak=id=>{if(!SR)return alert("Spracherkennung nicht unterstützt.");let e=document.getElementById(id),base=e.value,r=new SR();r.lang="de-CH";r.continuous=true;r.interimResults=true;r.onresult=x=>{let f=[];for(let i=0;i<x.results.length;i++)if(x.results[i].isFinal)f.push(x.results[i][0].transcript);let s="";f.forEach(v=>s=M(s,v));e.value=M(base,s)};r.start();setTimeout(()=>{try{r.stop()}catch(_){}},12000)};
-window.addEventListener("load",()=>{renderTaskModule();renderAllTasksTop()});
+window.addEventListener("load",()=>{renderTaskModule();renderAllTasksTop();renderGrooveCalendar()});
 })();
 </script>
 
@@ -2211,6 +2271,8 @@ window.addEventListener("load",()=>{renderTaskModule();renderAllTasksTop()});
     "grooveitEvents",
     "grooveitCurrentEvent",
     "grooveitIdeas::",
+    "grooveitTasks::",
+    "grooveitAppointments",
     "grooveitFinance::",
     "grooveitAISummary::",
     "grooveitIdeasAI::",
